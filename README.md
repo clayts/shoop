@@ -1,10 +1,8 @@
 # Shoop
 
-1. `GET /new` → redirects to `/game/<random-id>`
-2. First visitor to `/game/<id>` becomes **player1**
-3. Second visitor becomes **player2**
-4. Everyone after that is a **spectator**
-5. `/game/<id>` serves a game
+1. `/game/local` <- Play against a friend locally in a single browser window
+2. `/game/private` <- Play against a friend remotely by sharing the URL
+3. `/game/public` <- Play against a random opponent online
 
 ## Running it (testing & dev)
 
