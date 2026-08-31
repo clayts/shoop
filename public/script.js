@@ -189,7 +189,7 @@ class Board {
 
     // Existing preview: just update its colour and position.
     if (this.previewDisc) {
-      this.previewDisc.className = `circle preview ${this.role}`;
+      this.previewDisc.className = `disc preview ${this.role}`;
       this.positionDisc(this.previewDisc, column, -1);
       return;
     }
@@ -202,7 +202,7 @@ class Board {
     const targetColumn = pointerColumn ?? centeredColumn;
 
     const disc = document.createElement("div");
-    disc.className = `circle preview ${this.role}`;
+    disc.className = `disc preview ${this.role}`;
     disc.style.setProperty("--preview-scale", 0);
 
     this.container.appendChild(disc);
@@ -257,7 +257,7 @@ class Board {
 
   createDisc(role) {
     const disc = document.createElement("div");
-    disc.className = `circle ${role}`;
+    disc.className = `disc ${role}`;
     this.container.appendChild(disc);
     return disc;
   }
