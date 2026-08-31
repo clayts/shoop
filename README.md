@@ -22,3 +22,4 @@ node server.js
 ## To Do
 me:
 write an about page and add a link in the top bar
+make a home page
