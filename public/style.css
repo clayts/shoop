@@ -1,0 +1,58 @@
+:root {
+    --padding: 16px; /* space around the outside of the grid */
+    --gap: 8px; /* space between cells */
+}
+
+html,
+body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #808E6C;
+}
+
+/* Outer wrapper fills the viewport and provides the fixed padding */
+#grid-wrapper {
+    box-sizing: border-box;
+    width: 100vw;
+    height: 100vh;
+    padding: var(--padding);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#grid {
+    display: grid;
+    gap: var(--gap);
+    position: relative;
+    /* width/height/template are set by JS so cells stay square
+			and the grid is as large as possible */
+}
+
+.cell {
+    background: white;
+    opacity: 0.5;
+    border-radius: 50%;
+}
+
+.cell.winning {
+    background: gold;
+}
+
+.circle {
+    position: absolute;
+    pointer-events: none;
+    top: 0;
+    left: 0;
+    border-radius: 50%;
+    transition: transform 0.3s ease;
+}
+
+.circle.player1 {
+    background: red;
+}
+.circle.player2 {
+    background: blue;
+}
+/*.circle.preview { opacity: 0.5; }*/

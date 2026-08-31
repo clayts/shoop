@@ -1,0 +1,105 @@
+'use strict';
+
+const path = require('path');
+const http = require('http');
+const express = require('express');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const { nanoid } = require('nanoid');
+
+const { clientIdMiddleware } = require('./src/client');
+const { GameManager } = require('./src/manager');
+const { attachWebSocketServer } = require('./src/handler');
+
+const PORT = process.env.PORT || 3000;
+const GAME_ID_LENGTH = 12; // ~71 bits of randomness with nanoid's default alphabet
+
+const app = express();
+const gameManager = new GameManager();
+
+// --- Security & platform basics ---------------------------------------------------
+app.set('trust proxy', 1); // needed so req.secure / X-Forwarded-Proto work behind a reverse proxy
+app.use(
+  helmet({
+    contentSecurityPolicy: false, // enable & configure this once you know your page's script sources
+  })
+);
+app.disable('x-powered-by');
+
+// --- Stable per-browser identity (drives sticky role assignment) -----------------
+app.use(clientIdMiddleware);
+
+// --- Rate limiting for game creation (cheap to abuse otherwise) ------------------
+const newGameLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 20, // 20 new games per minute per IP is generous; tune to your traffic
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// --- Routes ------------------------------------------------------------------------
+
+// 1. /new -> mint a game id and redirect the browser to it.
+app.get('/new', newGameLimiter, (req, res) => {
+  const id = nanoid(GAME_ID_LENGTH);
+  gameManager.getOrCreate(id); // pre-create so /game/:id and the WS upgrade agree it exists
+  res.redirect(302, `/game/${id}`);
+});
+
+// 2 & 3 & 4. /game/:id -> serve the page; role assignment itself happens over the
+// WebSocket connection the page opens (see src/wsHandler.js), because that's the
+// point at which we know the visitor is actually here to participate, and it's
+// naturally serialized (no race between two concurrent HTTP requests).
+app.get('/game/:id', (req, res, next) => {
+  const { id } = req.params;
+  if (!GameManager.isValidId(id)) {
+    return res.status(404).send('Game not found: invalid id');
+  }
+  gameManager.getOrCreate(id); // lazily create if someone lands here via a shared link
+  res.sendFile(path.join(__dirname, 'public', 'page.html'));
+});
+
+// Simple read-only status endpoint, handy for debugging / smoke tests.
+app.get('/game/:id/status', (req, res) => {
+  const game = gameManager.get(req.params.id);
+  if (!game) return res.status(404).json({ error: 'not found' });
+  res.json({
+    id: game.id,
+    presence: game.presenceSnapshot(),
+    state: game.state,
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ ok: true, games: gameManager.size(), uptime: process.uptime() });
+});
+
+app.use(express.static(path.join(__dirname, 'public')));
+
+// --- HTTP + WebSocket server -------------------------------------------------------
+const server = http.createServer(app);
+attachWebSocketServer(server, gameManager, { path: '/ws' });
+
+// Periodic cleanup of abandoned games so memory doesn't grow unbounded.
+const reapInterval = setInterval(() => gameManager.reap(), 15 * 60 * 1000);
+reapInterval.unref();
+
+server.listen(PORT, () => {
+  console.log(`Game server listening on :${PORT}`);
+});
+
+// --- Graceful shutdown --------------------------------------------------------------
+function shutdown(signal) {
+  console.log(`${signal} received, shutting down...`);
+  clearInterval(reapInterval);
+  server.close(() => {
+    console.log('HTTP server closed.');
+    process.exit(0);
+  });
+  // Force-exit if connections don't drain in time.
+  setTimeout(() => process.exit(1), 10000).unref();
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+
+module.exports = { app, server, gameManager };
