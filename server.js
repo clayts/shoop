@@ -40,7 +40,7 @@ const newGameLimiter = rateLimit({
 // --- Routes ------------------------------------------------------------------------
 
 // 1. /new -> mint a game id and redirect the browser to it.
-app.get('/new', newGameLimiter, (req, res) => {
+app.get('/game/new', newGameLimiter, (req, res) => {
   const id = nanoid(GAME_ID_LENGTH);
   gameManager.getOrCreate(id); // pre-create so /game/:id and the WS upgrade agree it exists
   res.redirect(302, `/game/${id}`);

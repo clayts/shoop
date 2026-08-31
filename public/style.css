@@ -8,10 +8,38 @@ body {
     margin: 0;
     height: 100%;
     overflow: hidden;
-    background: #808E6C;
+    background: #808e6c;
 }
 
-/* Outer wrapper fills the viewport and provides the fixed padding */
+.top-row {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 16px;
+}
+
+.mute-toggle,
+.link-toggle {
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    outline: none;
+    display: inline-flex;
+    /*align-items: center;
+    justify-content: center;*/
+    color: white;
+    font-size: 32px; /* Adjust size here */
+    line-height: 1;
+}
+
+.mute-toggle svg,
+.link-toggle svg {
+  display: block;      /* Removes baseline inline-text space */
+  /*vertical-align: middle;*/
+}
+
 #grid-wrapper {
     box-sizing: border-box;
     width: 100vw;
@@ -26,21 +54,29 @@ body {
     display: grid;
     gap: var(--gap);
     position: relative;
-    /* width/height/template are set by JS so cells stay square
-			and the grid is as large as possible */
 }
 
 .cell {
     background: white;
-    opacity: 0.5;
+    opacity: 0.2;
     border-radius: 50%;
 }
 
-.cell.winning {
-    background: gold;
+.cell.highlighted {
+    opacity: 1;
 }
 
 .circle {
+    --scale: 0.85;
+    --offset: calc((1 - var(--scale)) / 2);
+
+    width: calc(var(--cell-size) * var(--scale));
+    height: calc(var(--cell-size) * var(--scale));
+    transform: translate(
+        calc(var(--col) * (var(--cell-size) + var(--gap)) + var(--cell-size) * var(--offset)),
+        calc(var(--row) * (var(--cell-size) + var(--gap)) + var(--cell-size) * var(--offset))
+    );
+
     position: absolute;
     pointer-events: none;
     top: 0;
@@ -55,4 +91,5 @@ body {
 .circle.player2 {
     background: blue;
 }
-/*.circle.preview { opacity: 0.5; }*/
+
+/*.circle.preview { }*/
