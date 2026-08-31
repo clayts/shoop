@@ -109,7 +109,7 @@ function playMove(game, clientId, payload) {
   console.dir(game.state, { depth: null });
   console.log("-----------------------------");
 
-  return { valid: true };
+  return { valid: true, role };
 }
 
 export { playMove, initialState };
