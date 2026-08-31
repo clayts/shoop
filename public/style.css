@@ -13,13 +13,71 @@ body {
 
 .top-row {
     display: flex;
-    justify-content: flex-end;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.top-row-right {
+    display: flex;
     align-items: center;
     gap: 16px;
 }
 
+.presence-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.presence-dot {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: white; /* tick/cross use currentColor */
+}
+
+.presence-dot svg {
+    width: 65%;
+    height: 65%;
+    display: block;
+}
+
+.presence-dot.presence-red {
+    background: red;
+}
+
+.presence-dot.presence-blue {
+    background: blue;
+}
+
+.presence-lozenge {
+    min-width: 28px;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    font-family: sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+}
+
+.bottom-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
 .mute-toggle,
-.link-toggle {
+.link-toggle,
+.restart-toggle {
     background: transparent;
     border: none;
     padding: 0;
@@ -35,7 +93,8 @@ body {
 }
 
 .mute-toggle svg,
-.link-toggle svg {
+.link-toggle svg,
+.restart-toggle svg {
   display: block;      /* Removes baseline inline-text space */
   /*vertical-align: middle;*/
 }
@@ -75,7 +134,7 @@ body {
     transform: translate(
         calc(var(--col) * (var(--cell-size) + var(--gap)) + var(--cell-size) * var(--offset)),
         calc(var(--row) * (var(--cell-size) + var(--gap)) + var(--cell-size) * var(--offset))
-    );
+    ) scale(var(--preview-scale, 1));
 
     position: absolute;
     pointer-events: none;

@@ -1,41 +1,5 @@
 "use strict";
 
-/**
- * ===========================================================================
- * REPLACE THE CONTENTS OF THIS FILE WITH YOUR OWN GAME RULES.
- * ===========================================================================
- *
- * playMove(game, role, clientId, payload) is called once per incoming
- * WebSocket move message, BEFORE anything is broadcast. It must be synchronous
- * (or return a Promise) and must not throw for bad input — return
- * { valid: false, reason } instead.
- *
- * Arguments:
- *   game.state   - freeform object that persists for the life of the game.
- *                  Mutate it here to track board position, turn, scores, etc.
- *                  For a game like Connect 4, the board itself is the full
- *                  history, so there's no separate move log to consult.
- *   role         - 'player1' | 'player2' | 'spectator' (spectators never reach
- *                  here in the default wiring — see wsHandler.js)
- *   clientId     - stable id for the connecting browser (persists across reloads)
- *   payload      - whatever JSON object the client sent as `payload` in:
- *                  { type: "move", payload: { ... } }
- *
- * Return shape:
- *   { valid: true }                         - move accepted, will be broadcast as-is
- *   { valid: true, broadcastPayload: {...} } - accepted, but broadcast this instead
- *                                              (e.g. to attach server-computed fields
- *                                              like resulting board state)
- *   { valid: false, reason: "not your turn" } - rejected, sender gets an error,
- *                                                 nothing is broadcast
- *
- * The example below is a generic "strict alternating turns" placeholder
- * (player1 moves, then player2, then player1, ...). Swap in real rules for
- * your game (e.g. validate a tic-tac-toe cell is empty, a chess move is
- * legal, etc).
- * ===========================================================================
- */
-
 const BOARD_WIDTH = 7;
 const BOARD_HEIGHT = 6;
 const LINE_LENGTH = 4;
@@ -119,12 +83,6 @@ function playMove(game, clientId, payload) {
   if (game.state.turn !== role) {
     return { valid: false, reason: `not your turn (waiting on ${game.state.turn})` };
   }
-
-  // --- YOUR GAME-SPECIFIC VALIDATION GOES HERE ---
-  // e.g. check payload.cell is in range and empty, check payload.from/to is a
-  // legal move for the piece at that square, etc. Mutate game.state to apply it.
-
-  // Example placeholder: just flip the turn.
 
   if ("column" in payload) {
     let column = payload["column"];

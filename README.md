@@ -1,4 +1,4 @@
-# Game Lobby Server
+# Shoop
 
 1. `GET /new` → redirects to `/game/<random-id>`
 2. First visitor to `/game/<id>` becomes **player1**
@@ -18,3 +18,7 @@ npm run dev        # node --watch, restarts on file changes
 npm ci --omit=dev
 node server.js
 ```
+
+## To Do
+me:
+write an about page and add a link in the top bar
