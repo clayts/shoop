@@ -112,4 +112,4 @@ function playMove(game, clientId, payload) {
   return { valid: true };
 }
 
-module.exports = { playMove, initialState };
+export { playMove, initialState };

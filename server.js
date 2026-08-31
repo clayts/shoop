@@ -1,15 +1,19 @@
 "use strict";
 
-const path = require("path");
-const http = require("http");
-const express = require("express");
-const helmet = require("helmet");
-const rateLimit = require("express-rate-limit");
-const { nanoid } = require("nanoid");
+import path from "path";
+import { fileURLToPath } from "url";
+import http from "http";
+import express from "express";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import { nanoid } from "nanoid";
 
-const { clientIdMiddleware } = require("./src/client");
-const { GameManager } = require("./src/manager");
-const { attachWebSocketServer } = require("./src/handler");
+import { clientIdMiddleware } from "./src/client.js";
+import { GameManager } from "./src/manager.js";
+import { attachWebSocketServer } from "./src/handler.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const PORT = process.env.PORT || 3000;
 const GAME_ID_LENGTH = 12; // ~71 bits of randomness with nanoid's default alphabet
@@ -110,4 +114,4 @@ function shutdown(signal) {
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
-module.exports = { app, server, gameManager };
+export { app, server, gameManager };

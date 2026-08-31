@@ -1,8 +1,8 @@
 "use strict";
 
-const { WebSocketServer } = require("ws");
-const { playMove, initialState } = require("./game");
-const { readClientId } = require("./client");
+import { WebSocketServer } from "ws";
+import { playMove, initialState } from "./game.js";
+import { readClientId } from "./client.js";
 
 const MAX_MESSAGE_BYTES = 16 * 1024; // 16KB per message is plenty for a move; tune as needed
 const MAX_MESSAGES_PER_WINDOW = 20; // per-connection burst limit
@@ -158,4 +158,4 @@ function attachWebSocketServer(server, gameManager, { path = "/ws" } = {}) {
   return wss;
 }
 
-module.exports = { attachWebSocketServer };
+export { attachWebSocketServer };

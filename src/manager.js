@@ -17,7 +17,7 @@
  * HTTP/WS handlers.
  */
 
-const { initialState } = require("./game");
+import { initialState } from "./game.js";
 
 const GAME_ID_RE = /^[A-Za-z0-9_-]{4,64}$/;
 const GAME_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours of inactivity -> eligible for cleanup
@@ -154,4 +154,4 @@ class GameManager {
   }
 }
 
-module.exports = { GameManager, Game, GAME_ID_RE, GAME_TTL_MS };
+export { GameManager, Game, GAME_ID_RE, GAME_TTL_MS };

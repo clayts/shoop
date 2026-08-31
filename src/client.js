@@ -1,9 +1,9 @@
-'use strict';
+"use strict";
 
-const crypto = require('crypto');
-const { parseCookie, stringifySetCookie } = require('cookie');
+import crypto from "crypto";
+import { parseCookie, stringifySetCookie } from "cookie";
 
-const COOKIE_NAME = 'pid';
+const COOKIE_NAME = "pid";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 days, in seconds
 
 function readClientId(req) {
@@ -24,14 +24,14 @@ function clientIdMiddleware(req, res, next) {
   if (!id) {
     id = mintClientId();
     res.setHeader(
-      'Set-Cookie',
+      "Set-Cookie",
       stringifySetCookie({
         name: COOKIE_NAME,
         value: id,
         httpOnly: true,
-        sameSite: 'lax',
-        secure: req.secure || req.headers['x-forwarded-proto'] === 'https',
-        path: '/',
+        sameSite: "lax",
+        secure: req.secure || req.headers["x-forwarded-proto"] === "https",
+        path: "/",
         maxAge: COOKIE_MAX_AGE,
       })
     );
@@ -40,4 +40,4 @@ function clientIdMiddleware(req, res, next) {
   next();
 }
 
-module.exports = { clientIdMiddleware, readClientId, COOKIE_NAME };
+export { clientIdMiddleware, readClientId, COOKIE_NAME };
