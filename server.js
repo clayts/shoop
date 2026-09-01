@@ -72,7 +72,11 @@ app.get("/game/:id", (req, res) => {
   if (!GameManager.isValidId(req.params.id)) {
     return res.status(404).send("Game not found: invalid id");
   }
-  gameManager.getOrCreate(req.params.id); // lazily create if someone lands here via a shared link
+  if (!gameManager.get(req.params.id)) {
+    // Games are only created via /game/private, /game/public, or /game/local —
+    // an unrecognized id (e.g. typed in by hand) is not a valid game.
+    return res.status(404).send("Game not found");
+  }
   res.sendFile(path.join(__dirname, "public", "page.html"));
 });
 

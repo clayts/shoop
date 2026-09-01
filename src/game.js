@@ -71,10 +71,15 @@ function playMove(game, clientId, payload) {
     return { valid: false, reason: `game has been won` };
   }
 
-  let role = game.roles.get(clientId);
-  if (role !== "player1" && role !== "player2") {
+  const assignedRole = game.roles.get(clientId);
+  if (assignedRole !== "player1" && assignedRole !== "player2") {
     return { valid: false, reason: "only players may move" };
   }
+
+  // In local ("pass and play") games, one connection is sticky-assigned
+  // player1, but it plays both sides — the side actually moving is whoever
+  // the game state says has the turn, not the sticky assignment.
+  const role = game.local ? game.state.turn : assignedRole;
 
   if (payload == null || typeof payload !== "object") {
     return { valid: false, reason: "payload must be a JSON object" };
@@ -101,7 +106,7 @@ function playMove(game, clientId, payload) {
 
   game.state.line = checkLine(game.state.board);
   if (!game.state.line) {
-    game.state.turn = game.roles.get(clientId) === "player1" ? "player2" : "player1";
+    game.state.turn = role === "player1" ? "player2" : "player1";
   }
 
   console.log("-----------------------------");

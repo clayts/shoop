@@ -57,10 +57,12 @@ function attachWebSocketServer(server, gameManager, { path = "/ws" } = {}) {
   });
 
   wss.on("connection", (ws, req, { gameId, clientId }) => {
-    const game = gameManager.getOrCreate(gameId);
+    // Games are only created via /game/private, /game/public, or /game/local
+    // (see server.js); don't create one just because a socket asked for it.
+    const game = gameManager.get(gameId);
     if (!game) {
-      safeSend(ws, { type: "error", reason: "invalid game id" });
-      return ws.close(1008, "invalid game id");
+      safeSend(ws, { type: "error", reason: "game not found" });
+      return ws.close(1008, "game not found");
     }
 
     const role = game.getOrAssignRole(clientId);
