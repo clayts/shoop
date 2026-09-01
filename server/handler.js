@@ -1,8 +1,8 @@
 "use strict";
 
 import { WebSocketServer } from "ws";
-import { playMove, initialState } from "./game.js";
-import { readClientId } from "./client.js";
+import { playMove, initialState } from "./board.js";
+import { readClientId } from "./id.js";
 
 const MAX_MESSAGE_BYTES = 16 * 1024; // 16KB per message is plenty for a move; tune as needed
 const MAX_MESSAGES_PER_WINDOW = 20; // per-connection burst limit

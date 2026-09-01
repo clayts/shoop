@@ -8,9 +8,9 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { nanoid } from "nanoid";
 
-import { clientIdMiddleware } from "./src/client.js";
-import { GameManager } from "./src/manager.js";
-import { attachWebSocketServer } from "./src/handler.js";
+import { clientIdMiddleware } from "./server/id.js";
+import { GameManager } from "./server/manager.js";
+import { attachWebSocketServer } from "./server/handler.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -51,7 +51,7 @@ app.get("/game/private", newGameLimiter, (req, res) => {
 
 // Public: join the first open game in the automatch queue, or start a new one.
 app.get("/game/public", newGameLimiter, (req, res) => {
-  const id = gameManager.joinOrCreatePublic(() => nanoid(GAME_ID_LENGTH));
+  const id = gameManager.joinOrCreateAutomatch(() => nanoid(GAME_ID_LENGTH));
   res.redirect(302, `/game/${id}`);
 });
 
@@ -77,7 +77,7 @@ app.get("/game/:id", (req, res) => {
     // an unrecognized id (e.g. typed in by hand) is not a valid game.
     return res.status(404).send("Game not found");
   }
-  res.sendFile(path.join(__dirname, "public", "page.html"));
+  res.sendFile(path.join(__dirname, "client", "game.html"));
 });
 
 // Simple read-only status endpoint, handy for debugging / smoke tests.
@@ -91,7 +91,7 @@ app.get("/health", (req, res) => {
   res.json({ ok: true, games: gameManager.size(), uptime: process.uptime() });
 });
 
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(path.join(__dirname, "client")));
 
 // --- HTTP + WebSocket server -------------------------------------------------------
 const server = http.createServer(app);

@@ -17,7 +17,7 @@
  * HTTP/WS handlers.
  */
 
-import { initialState } from "./game.js";
+import { initialState } from "./board.js";
 
 const GAME_ID_RE = /^[A-Za-z0-9_-]{4,64}$/;
 const GAME_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours of inactivity -> eligible for cleanup
@@ -129,7 +129,7 @@ class GameManager {
    * creates a fresh one and adds it to the queue. `makeId` mints a new id
    * (e.g. nanoid) only when a new game is actually needed.
    */
-  joinOrCreatePublic(makeId) {
+  joinOrCreateAutomatch(makeId) {
     while (this.publicQueue.length) {
       const id = this.publicQueue.shift();
       const game = this.games.get(id);
