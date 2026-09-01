@@ -85,7 +85,9 @@ class Game {
   }
 
   presenceSnapshot() {
-    const spectatorCount = [...this.roles.values()].filter((r) => r === "spectator").length;
+    const spectatorCount = [...this.roles.entries()].filter(
+      ([clientId, role]) => role === "spectator" && this.isConnected(clientId),
+    ).length;
 
     // Local: one connection plays both sides, so "both players" are connected
     // together, as a pair, whenever that one connection is.

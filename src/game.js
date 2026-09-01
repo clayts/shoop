@@ -13,7 +13,7 @@ function initialState() {
   };
 }
 
-function checkLine(board) {
+function checkLine(board, player) {
   const getCell = (column, row) => board[column]?.[row] || null;
 
   const directions = [
@@ -27,8 +27,8 @@ function checkLine(board) {
     const colLength = board[c]?.length || 0;
 
     for (let r = 0; r < colLength; r++) {
-      const player = getCell(c, r);
-      if (!player) continue;
+      const cellPlayer = getCell(c, r);
+      if (cellPlayer !== player) continue;
 
       for (const [dc, dr] of directions) {
         // Track coordinates starting with the initial piece
@@ -104,9 +104,14 @@ function playMove(game, clientId, payload) {
     return { valid: false, reason: `no column specified` };
   }
 
-  game.state.line = checkLine(game.state.board);
+  const opponent = role === "player1" ? "player2" : "player1";
+
+  // The opponent gets priority: if they already have a winning line on the
+  // board, that takes precedence over any line the mover just formed.
+  game.state.line = checkLine(game.state.board, opponent) || checkLine(game.state.board, role);
+
   if (!game.state.line) {
-    game.state.turn = role === "player1" ? "player2" : "player1";
+    game.state.turn = opponent;
   }
 
   console.log("-----------------------------");

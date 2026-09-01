@@ -1,6 +1,16 @@
 :root {
     --padding: 16px; /* space around the outside of the grid */
     --gap: 8px; /* space between cells */
+    --disc-scale: 0.85; /* disc diameter as a fraction of cell size */
+    --scale-duration: 0.5s; /* shrink/grow animation duration */
+    --wave-step: 40ms; /* stagger between adjacent rows */
+
+    --background-color: #808e6c;
+    --cell-color: white;
+    --player1-color: red;
+    --player2-color: blue;
+    --highlighted-line-color: white;
+    --ui-text-color: rgba(255, 255, 255, 0.75);
 }
 
 html,
@@ -8,65 +18,70 @@ body {
     margin: 0;
     height: 100%;
     overflow: hidden;
-    background: #808e6c;
+    background: var(--background-color);
 }
 
 .top-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    margin: 0 calc(var(--cell-size) / 2);
 }
 
 .top-row-right {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: var(--gap);
 }
 
 .presence-status {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--gap);
 }
 
 .presence-dot {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
+    width: var(--cell-size);
+    height: var(--cell-size);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    color: white; /* tick/cross use currentColor */
+    transform: scale(var(--dot-scale, 0));
+    transition: transform var(--scale-duration) ease;
 }
 
 .presence-dot svg {
-    width: 65%;
-    height: 65%;
+    width: 100%;
+    height: 100%;
     display: block;
 }
 
-.presence-dot.presence-red {
-    background: red;
+.presence-dot.presence-player1 {
+    color: var(--player1-color);
 }
 
-.presence-dot.presence-blue {
-    background: blue;
+.presence-dot.presence-player2 {
+    color: var(--player2-color);
+}
+
+.presence-dot.presence-spectators {
+    width: calc(var(--cell-size) * 2 + var(--gap));
+    justify-content: flex-start;
+    color: var(--ui-text-color);
+    gap: 4px;
+}
+
+.presence-dot.presence-spectators svg {
+    width: var(--cell-size);
+    height: var(--cell-size);
+    flex-shrink: 0;
 }
 
 .presence-lozenge {
-    min-width: 28px;
-    height: 24px;
-    padding: 0 8px;
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.2);
-    color: white;
+    color: var(--ui-text-color);
     font-family: sans-serif;
     font-weight: 600;
-    font-size: 14px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    box-sizing: border-box;
+    font-size: calc(var(--cell-size) * 0.65);
 }
 
 .bottom-row {
@@ -85,18 +100,15 @@ body {
     cursor: pointer;
     outline: none;
     display: inline-flex;
-    /*align-items: center;
-    justify-content: center;*/
-    color: white;
-    font-size: 32px; /* Adjust size here */
+    color: var(--ui-text-color);
+    font-size: var(--cell-size);
     line-height: 1;
 }
 
 .mute-toggle svg,
 .link-toggle svg,
 .restart-toggle svg {
-  display: block;      /* Removes baseline inline-text space */
-  /*vertical-align: middle;*/
+    display: block; /* removes baseline inline-text space */
 }
 
 #grid-wrapper {
@@ -113,12 +125,28 @@ body {
     display: grid;
     gap: var(--gap);
     position: relative;
+    z-index: 0;
+}
+
+.highlighted-line {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: calc(var(--cell-size) * (1 - var(--disc-scale)) / 2);
+    background: var(--highlighted-line-color);
+    transform-origin: 0 50%;
+    transform: translate(var(--x), var(--y)) rotate(var(--angle));
+    z-index: -1;
+    pointer-events: none;
 }
 
 .cell {
-    background: white;
+    background: var(--cell-color);
     opacity: 0.2;
     border-radius: 50%;
+    transform: scale(var(--cell-scale, 1));
+    transition: transform var(--scale-duration) ease;
+    transition-delay: calc(var(--wave-index, 0) * var(--wave-step));
 }
 
 .cell.highlighted {
@@ -126,7 +154,7 @@ body {
 }
 
 .disc {
-    --scale: 0.85;
+    --scale: var(--disc-scale);
     --offset: calc((1 - var(--scale)) / 2);
 
     width: calc(var(--cell-size) * var(--scale));
@@ -141,12 +169,12 @@ body {
     top: 0;
     left: 0;
     border-radius: 50%;
-    transition: transform 0.3s ease;
+    transition: transform var(--scale-duration) ease;
 }
 
 .disc.player1 {
-    background: red;
+    background: var(--player1-color);
 }
 .disc.player2 {
-    background: blue;
+    background: var(--player2-color);
 }
