@@ -21,3 +21,4 @@ node server.js
 - Fix multiplayer issue
 - Add way to join as spectator
 - Make spectators get win noise rather than lose noise
+- Fix for WhatsApp browser?
