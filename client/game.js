@@ -14,48 +14,36 @@ const CSS_VARIABLES = {
 };
 
 const OPPONENT_ROLE = { player1: "player2", player2: "player1" };
-const MOVE_NOTE_BY_ROLE = { player1: "C5", player2: "E5" };
+
+const NOTE_NAME_PATTERN = /^([A-Ga-g])(#|b)?(-?\d+)$/;
+const NOTE_LETTER_SEMITONE_OFFSETS = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+
+const SOUND_SCALE_ROOT_NOTE = "C4";
+// const SOUND_SCALE_SEMITONE_OFFSETS = [0, 1, 5, 6, 9]; // Anchihoye scale: 1, m2, 4, b5, M6
+// const SOUND_SCALE_SEMITONE_OFFSETS = [0, 1, 5, 7, 8]; // Ambassel minor scale: 1, m2, 4, 5, m6
+const SOUND_SCALE_SEMITONE_OFFSETS = [0, 2, 4, 7, 9]; // Tizita major scale: 1, 2, 3, 5, 6 (= western major pentatonic)
+
+const WIN_ARPEGGIO_DEGREES = [2, 3, 4, 5]; // rises through the scale, resolves up onto the root
+const LOSE_ARPEGGIO_DEGREES = [3, 2, 1, 0]; // falls through the scale, resolves down onto the root
 
 const PLAYER_CONNECTED_SOUND = {
-  notes: [
-    { frequency: "C4", duration: 0.1 },
-    { frequency: "G4", duration: 0.15 },
-  ],
+  notes: [scaleNote(0, 0.1), scaleNote(4, 0.15)],
   waveform: "sine",
   gain: 0.2,
 };
 const PLAYER_DISCONNECTED_SOUND = {
-  notes: [
-    { frequency: "G4", duration: 0.1 },
-    { frequency: "C4", duration: 0.15 },
-  ],
+  notes: [scaleNote(4, 0.1), scaleNote(0, 0.15)],
   waveform: "sine",
   gain: 0.2,
 };
-const WIN_SOUND = {
-  notes: [
-    { frequency: "C5", duration: 0.15 },
-    { frequency: "E5", duration: 0.15 },
-    { frequency: "G5", duration: 0.25 },
-  ],
-  waveform: "sine",
-  gain: 0.25,
-};
-const LOSE_SOUND = {
-  notes: [
-    { frequency: "G4", duration: 0.15 },
-    { frequency: "E4", duration: 0.15 },
-    { frequency: "C4", duration: 0.3 },
-  ],
-  waveform: "sine",
-  gain: 0.25,
-};
 const ERROR_SOUND = {
-  notes: [
-    { frequency: "A3", duration: 0.15 },
-    { frequency: "Ab3", duration: 0.2 },
-  ],
+  notes: [scaleNote(-4, 0.15), scaleNote(-5, 0.2)],
   waveform: "sawtooth",
+  gain: 0.2,
+};
+const RESTART_SOUND = {
+  notes: [scaleNote(2, 0.1), scaleNote(4, 0.1), scaleNote(2, 0.15)],
+  waveform: "triangle",
   gain: 0.2,
 };
 
@@ -71,9 +59,6 @@ const ICONS = {
 
 const LINK_COPIED_DISPLAY_DURATION_MS = 1200;
 
-const NOTE_NAME_PATTERN = /^([A-Ga-g])(#|b)?(-?\d+)$/;
-const NOTE_LETTER_SEMITONE_OFFSETS = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
-
 
 // Reads a numeric CSS custom property from the document root, falling back
 // to `fallback` if it isn't set or isn't a number.
@@ -83,7 +68,7 @@ function readRootCssNumber(propertyName, fallback) {
 }
 
 // ============================================================================
-// Board: renders the grid, the toolbar rows, and the hover/placement discs.
+// Board: renders the grid, the toolbar rows, and the preview/placement discs.
 // ============================================================================
 class Board {
   constructor(container, { onColumnClick, onRestart, onBuildTopRow }) {
@@ -102,31 +87,24 @@ class Board {
     this.currentTurn = null;
     this.active = false; // both players connected
     this.gameOver = false;
-    this.lastPointerEvent = null;
-
-    this.container.addEventListener("pointermove", (event) => {
-      if (event.pointerType !== "mouse") return;
-
-      this.lastPointerEvent = event;
-
-      if (!this.isMyTurn()) return;
-
-      const column = this.getColumnAtEvent(event);
-      if (column !== null) this.showPreview(column);
-    });
-
-    this.container.addEventListener("mouseleave", () => {
-      this.lastPointerEvent = null;
-
-      if (this.isMyTurn()) this.showPreview();
-    });
 
     this.container.addEventListener("click", (event) => {
       const column = this.getColumnAtEvent(event);
       if (column !== null) onColumnClick(column);
     });
 
-    this.handleResize = () => this.layout();
+    this.resizeSettleMs = 150; // how long to wait after the last resize event before resuming animations
+    this.resizeSettleTimer = null;
+
+    this.handleResize = () => {
+      document.body.classList.add("resizing");
+      window.clearTimeout(this.resizeSettleTimer);
+      this.resizeSettleTimer = window.setTimeout(() => {
+        document.body.classList.remove("resizing");
+      }, this.resizeSettleMs);
+
+      this.layout();
+    };
     window.addEventListener("resize", this.handleResize);
   }
 
@@ -151,7 +129,6 @@ class Board {
     if (recreatePreview && turnChanged) {
       this.previewDisc?.remove();
       this.previewDisc = null;
-      this.previewColumn = null;
     }
 
     this.showPreview();
@@ -237,7 +214,6 @@ class Board {
     this.container.appendChild(fragment);
 
     this.previewDisc = null;
-    this.previewColumn = null; // null means "centered", used to re-layout correctly
     this.highlightedLineElement = null;
     this.highlightedLineCells = null;
 
@@ -297,68 +273,57 @@ class Board {
     });
   }
 
-  // Shifts the column's existing discs up one row and drops a new disc in at the bottom.
+  // Shifts the column's existing discs up one row, then drops a new disc in:
+  // it starts centered (right where the preview sits), slides horizontally
+  // into the target column, and only once that arrives does it fall.
   playDisc(column, role) {
     const stack = this.stacks[column];
     stack.forEach((disc, row) => this.positionDisc(disc, column, row + 1));
 
     const disc = this.createDisc(role);
-    this.positionDisc(disc, column, -1); // start in the invisible row
-    void disc.offsetHeight; // force reflow so the next move animates
-    this.positionDisc(disc, column, 0);
+    this.positionDisc(disc, this.centeredColumn, -1); // start centered, in the invisible row
+    void disc.offsetHeight; // force reflow so the slide below actually animates
+    this.positionDisc(disc, column, -1); // slide horizontally to the target column
+
+    window.setTimeout(() => {
+      this.positionDisc(disc, column, 0); // then drop straight down into place
+    }, this.scaleDurationMs);
+
     stack.unshift(disc);
   }
 
-  // Returns the column currently under the last known mouse position.
-  previewColumnFromPointer() {
-    if (!this.lastPointerEvent) return null;
-    return this.getColumnAtEvent(this.lastPointerEvent);
-  }
-
-  // Shows the preview over `column` (or centered if omitted), or removes it
-  // entirely if column is null or play isn't allowed. The scale-in animation
-  // only plays the moment the preview (re)appears — while it's already shown,
-  // moving it across columns just animates position, not size.
-  showPreview(column = this.isMyTurn() ? this.centeredColumn : null) {
-    this.previewColumn = column;
-
-    if (column === null) {
+  // Shows (or hides) the static, centered preview disc. It never tracks the
+  // pointer — it always sits above the middle column while it's my turn.
+  // The scale-in animation only plays the moment the preview (re)appears.
+  showPreview() {
+    if (!this.isMyTurn()) {
       this.previewDisc?.remove();
       this.previewDisc = null;
       return;
     }
 
-    // Existing preview: just update its colour and position.
+    // Already shown: just keep its colour in sync (local "pass and play"
+    // flips role each turn; position never needs to change).
     if (this.previewDisc) {
       this.previewDisc.className = `disc preview ${this.role}`;
-      this.positionDisc(this.previewDisc, column, -1);
       return;
     }
-
-    // A newly-created preview should immediately inspect the current pointer
-    // and use that column when one is available.
-    const targetColumn = this.previewColumnFromPointer() ?? this.centeredColumn;
 
     const disc = document.createElement("div");
     disc.className = `disc preview ${this.role}`;
     disc.style.setProperty(CSS_VARIABLES.previewScale, 0);
 
-    this.container.appendChild(disc);
-
-    // Create the disc at the central position first.
+    // Insert at the very front (rather than appendChild) so the preview
+    // always paints beneath every other disc — including a prior preview,
+    // in case one briefly outlives this one during a turn change.
+    this.container.insertBefore(disc, this.container.firstChild);
     this.positionDisc(disc, this.centeredColumn, -1);
 
     this.previewDisc = disc;
-    this.previewColumn = targetColumn;
 
-    // Force the browser to commit the initial scale of zero.
+    // Force the browser to commit the initial scale of zero, then grow in.
     void disc.offsetHeight;
-
-    // Start the scale-in animation, then translate only once it's finished.
     disc.style.setProperty(CSS_VARIABLES.previewScale, 1);
-    window.setTimeout(() => {
-      if (this.previewDisc === disc) this.positionDisc(disc, targetColumn, -1);
-    }, this.scaleDurationMs);
   }
 
   highlightLine(line) {
@@ -427,8 +392,8 @@ class Board {
 
     this.stacks.forEach((stack, column) => stack.forEach((disc, row) => this.positionDisc(disc, column, row)));
 
-    if (this.previewColumn !== null && this.previewDisc) {
-      this.positionDisc(this.previewDisc, this.previewColumn, -1);
+    if (this.previewDisc) {
+      this.positionDisc(this.previewDisc, this.centeredColumn, -1);
     }
 
     this.drawHighlightedLine();
@@ -436,6 +401,7 @@ class Board {
 
   destroy() {
     window.removeEventListener("resize", this.handleResize);
+    window.clearTimeout(this.resizeSettleTimer);
   }
 
   createDisc(role) {
@@ -522,24 +488,9 @@ class SynthPlayer {
     this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
   }
 
-  // Converts note name like "A4", "C#5", "Db3" to frequency in Hz
+  // Converts note name like "A4", "C#5", "Db3" to frequency in Hz.
   static getFrequencyForNote(note) {
-    if (typeof note === "number") return note;
-
-    const match = note.match(NOTE_NAME_PATTERN);
-    if (!match) {
-      throw new Error(`Invalid note: ${note}`);
-    }
-
-    const [, letter, accidental, octaveText] = match;
-    let semitoneOffset = NOTE_LETTER_SEMITONE_OFFSETS[letter.toUpperCase()];
-
-    if (accidental === "#") semitoneOffset += 1;
-    if (accidental === "b") semitoneOffset -= 1;
-
-    const midiNoteNumber = (parseInt(octaveText, 10) + 1) * 12 + semitoneOffset;
-
-    return 440 * Math.pow(2, (midiNoteNumber - 69) / 12);
+    return noteNameToFrequency(note);
   }
 
   // notes: [{frequency: number|string, duration, glide, waveform}, ...]
@@ -558,6 +509,7 @@ class SynthPlayer {
     }));
 
     let time = this.audioContext.currentTime;
+    let previousFrequency = resolvedNotes[0]?.frequency;
 
     resolvedNotes.forEach((note, noteIndex) => {
       const duration = note.duration ?? 0.3;
@@ -569,9 +521,14 @@ class SynthPlayer {
       if (noteIndex === 0 || !note.glide) {
         oscillator.frequency.setValueAtTime(note.frequency, time);
       } else {
+        // Re-anchor at the previous note's frequency right at this note's
+        // start time — otherwise the ramp is measured from note 0's event
+        // and the pitch starts climbing immediately instead of waiting.
+        oscillator.frequency.setValueAtTime(previousFrequency, time);
         oscillator.frequency.linearRampToValueAtTime(note.frequency, time + duration);
       }
 
+      previousFrequency = note.frequency;
       time += duration;
     });
 
@@ -587,20 +544,92 @@ class SynthPlayer {
 }
 
 // ============================================================================
-// Wiring: websocket <-> board. Local ("pass and play") games use this exact
-// same code path — the server just lets one connection move for both colours
-// (see src/game.js / src/manager.js). The only client-side accommodation is
-// applyTurn() keeping board.role glued to whichever side is currently up, so
-// clicks/preview/colours always follow the active player instead of a fixed side.
+// Sound scale: converts note names/scale degrees to frequencies, and builds
+// the move/win/lose sounds from SOUND_SCALE_SEMITONE_OFFSETS.
 // ============================================================================
 
-function buildMoveSound(role) {
+// Converts a note name like "A4", "C#5", "Db3" (or an already-numeric
+// frequency, passed through as-is) to a frequency in Hz. Standalone (rather
+// than a SynthPlayer static method) so it's usable at module-load time by
+// the scale helpers below — see PLAYER_CONNECTED_SOUND et al, which are
+// defined near the top of the file, before SynthPlayer exists.
+function noteNameToFrequency(note) {
+  if (typeof note === "number") return note;
+
+  const match = note.match(NOTE_NAME_PATTERN);
+  if (!match) {
+    throw new Error(`Invalid note: ${note}`);
+  }
+
+  const [, letter, accidental, octaveText] = match;
+  let semitoneOffset = NOTE_LETTER_SEMITONE_OFFSETS[letter.toUpperCase()];
+
+  if (accidental === "#") semitoneOffset += 1;
+  if (accidental === "b") semitoneOffset -= 1;
+
+  const midiNoteNumber = (parseInt(octaveText, 10) + 1) * 12 + semitoneOffset;
+
+  return 440 * Math.pow(2, (midiNoteNumber - 69) / 12);
+}
+
+// Converts a scale degree (0 = root; negative or >= scale length wraps into
+// a neighbouring octave) into a frequency in Hz, per SOUND_SCALE_SEMITONE_OFFSETS.
+function frequencyForScaleDegree(degree) {
+  const rootFrequency = noteNameToFrequency(SOUND_SCALE_ROOT_NOTE);
+  const scaleLength = SOUND_SCALE_SEMITONE_OFFSETS.length;
+  const octave = Math.floor(degree / scaleLength);
+  const indexInScale = ((degree % scaleLength) + scaleLength) % scaleLength;
+  const semitoneOffset = SOUND_SCALE_SEMITONE_OFFSETS[indexInScale] + octave * 12;
+
+  return rootFrequency * Math.pow(2, semitoneOffset / 12);
+}
+
+// A single scale-degree note, ready to drop straight into a notes[] array.
+function scaleNote(degree, duration, extra = {}) {
+  return { frequency: frequencyForScaleDegree(degree), duration, ...extra };
+}
+
+// The column's disc count doubles as a scale degree — so a fuller column
+// plays a higher note.
+function buildMoveSound(discCount) {
+  const slideSeconds = board.scaleDurationMs / 1000;
+
   return {
-    notes: [{ frequency: MOVE_NOTE_BY_ROLE[role], duration: 0.12 }],
+    // Holds the note through the disc's horizontal slide, then glides up to
+    // the next scale degree as the disc drops vertically into place.
+    notes: [scaleNote(discCount, slideSeconds), scaleNote(discCount + 1, slideSeconds, { glide: true })],
     waveform: "triangle",
     gain: 0.25,
   };
 }
+
+// Builds a fixed arpeggio (WIN/LOSE_ARPEGGIO_DEGREES) into a playable sound.
+// Played on its own once the disc has finished landing (see the "move"
+// message handler), following the move sound rather than bundled into it, so
+// win/lose moves share the exact same click/slide timing as an ordinary move.
+function buildArpeggioSound(degrees, noteDuration) {
+  return {
+    notes: degrees.map((degree) => scaleNote(degree, noteDuration, { waveform: "sine" })),
+    waveform: "sine",
+    gain: 0.25,
+  };
+}
+
+function buildWinSound() {
+  return buildArpeggioSound(WIN_ARPEGGIO_DEGREES, 0.15);
+}
+
+function buildLoseSound() {
+  return buildArpeggioSound(LOSE_ARPEGGIO_DEGREES, 0.2);
+}
+
+// ============================================================================
+// Wiring: websocket <-> board. Local ("pass and play") games use this exact
+// same code path — the server just lets one connection move for both colours
+// (see server/board.js / server/manager.js). The only client-side accommodation
+// is applyTurn() keeping board.role glued to whichever side is currently up, so
+// clicks/preview/colours always follow the active player instead of a fixed side.
+// ============================================================================
 
 let synth = null; // created lazily on first user gesture (mute button click)
 let muted = true;
@@ -652,10 +681,11 @@ const board = new Board(document.getElementById("grid"), {
   },
 });
 
-const gameId = location.pathname.split("/").filter(Boolean)[1]; // /game/<id>
+// URL shape: /game/<type>/<id>
+const [, gameType, gameId] = location.pathname.split("/").filter(Boolean);
 
 const socket = new WebSocket(
-  `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/${gameId}`,
+  `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/${gameType}/${gameId}`,
 );
 
 const sendToServer = socket.send.bind(socket);
@@ -703,16 +733,25 @@ socket.addEventListener("message", (event) => {
     }
 
     case "move": {
+      const discCountBeforeMove = board.stacks[message.payload.column].length;
       board.playDisc(message.payload.column, message.role);
+      playSound(buildMoveSound(discCountBeforeMove));
 
       if (message.line) {
-        window.setTimeout(() => board.highlightLine(message.line), board.scaleDurationMs);
         board.setGameOver(true);
 
-        const hasWon = message.role === board.role;
-        playSound(hasWon ? WIN_SOUND : LOSE_SOUND);
-      } else {
-        playSound(buildMoveSound(message.role));
+        // playDisc's animation is two phases — horizontal slide, then
+        // vertical drop — each scaleDurationMs long, so the disc has fully
+        // landed at 2x. That's when the line highlight and win/lose
+        // arpeggio (following on from the move sound above) play.
+        window.setTimeout(() => {
+          board.highlightLine(message.line);
+
+          // Local ("pass and play") games have one speaker for both sides,
+          // so there's no meaningful "lose" perspective — just celebrate.
+          const hasWon = isLocal || message.role === board.role;
+          playSound(hasWon ? buildWinSound() : buildLoseSound());
+        }, board.scaleDurationMs * 2);
       }
 
       applyTurn(OPPONENT_ROLE[message.role]);
@@ -722,6 +761,8 @@ socket.addEventListener("message", (event) => {
 
     case "restart": {
       const { rows, columns } = message.state.dimensions;
+
+      playSound(RESTART_SOUND);
 
       board.restart(rows, columns, () => {
         applyTurn(message.state.turn);

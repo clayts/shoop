@@ -37,29 +37,30 @@ function attachWebSocketServer(server, gameManager, { path = "/ws" } = {}) {
 
     if (!url.pathname.startsWith(path + "/")) return socket.destroy();
 
-    const gameId = url.pathname.slice((path + "/").length);
-    const clientId = readClientId(req); // browser must have visited /game/:id first to receive this cookie
+    const [gameType, gameId] = url.pathname.slice((path + "/").length).split("/");
+    const clientId = readClientId(req); // browser must have visited /game/:type/:id first to receive this cookie
 
-    if (!gameId || !gameManager.constructor.isValidId(gameId)) {
+    if (!gameManager.constructor.isValidType(gameType) || !gameManager.constructor.isValidId(gameId)) {
       socket.write("HTTP/1.1 400 Bad Request\r\n\r\n");
       return socket.destroy();
     }
     if (!clientId) {
-      // No identity cookie yet -> the browser hasn't loaded /game/:id in this
-      // origin. Reject with 401 so the client can fall back to a normal page load.
+      // No identity cookie yet -> the browser hasn't loaded /game/:type/:id in
+      // this origin. Reject with 401 so the client can fall back to a normal page load.
       socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
       return socket.destroy();
     }
 
     wss.handleUpgrade(req, socket, head, (ws) => {
-      wss.emit("connection", ws, req, { gameId, clientId });
+      wss.emit("connection", ws, req, { gameType, gameId, clientId });
     });
   });
 
-  wss.on("connection", (ws, req, { gameId, clientId }) => {
-    // Games are only created via /game/private, /game/public, or /game/local
-    // (see server.js); don't create one just because a socket asked for it.
-    const game = gameManager.get(gameId);
+  wss.on("connection", (ws, req, { gameType, gameId, clientId }) => {
+    // Games are now created lazily on first request for a given type/id (see
+    // server.js's GET /game/:type/:id) — by the time a socket connects, the
+    // page load that opened it should already have created the game.
+    const game = gameManager.get(gameType, gameId);
     if (!game) {
       safeSend(ws, { type: "error", reason: "game not found" });
       return ws.close(1008, "game not found");

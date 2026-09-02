@@ -3,14 +3,18 @@
 /**
  * In-memory game registry.
  *
+ * Games are identified by a (type, id) pair — type is "private", "public",
+ * or "local", and id is a user-visible string that no longer has to be
+ * server-minted, so the same id can exist once per type without colliding.
+ * Internally each game is stored under the composite key "type:id".
+ *
  * Each Game tracks:
  *  - roles:   Map<clientId, 'player1' | 'player2' | 'spectator'>   (sticky, survives reconnects)
  *  - sockets: Map<clientId, Set<WebSocket>>                        (live connections, may be empty)
  *  - state:   freeform object your playMove owns and mutates (board position, turn, scores, ...)
  *  - local:   true for a "pass and play" game where one browser plays both
- *             sides (see /game/local in server.js) — changes role assignment
- *             and presence reporting below, and how src/game.js resolves the
- *             mover's role.
+ *             sides — changes role assignment and presence reporting below,
+ *             and how server/board.js resolves the mover's role.
  *
  * This is a single-process store. See README.md "Scaling beyond one instance" for
  * how to swap this out for Redis (or another shared store) without touching the
@@ -19,13 +23,15 @@
 
 import { initialState } from "./board.js";
 
-const GAME_ID_RE = /^[A-Za-z0-9_-]{4,64}$/;
+const GAME_ID_RE = /^[A-Za-z0-9-]{1,64}$/;
+const GAME_TYPES = ["private", "public", "local"];
 const GAME_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours of inactivity -> eligible for cleanup
 
 class Game {
-  constructor(id) {
+  constructor(type, id) {
     this.id = id;
-    this.local = false;
+    this.type = type;
+    this.local = type === "local";
     this.createdAt = Date.now();
     this.lastActivity = Date.now();
     this.roles = new Map(); // clientId -> role
@@ -106,7 +112,7 @@ class Game {
 
 class GameManager {
   constructor() {
-    this.games = new Map(); // id -> Game
+    this.games = new Map(); // "type:id" -> Game
     this.publicQueue = []; // ids of public games still waiting for a 2nd player
   }
 
@@ -114,30 +120,41 @@ class GameManager {
     return typeof id === "string" && GAME_ID_RE.test(id);
   }
 
-  getOrCreate(id) {
-    if (!GameManager.isValidId(id)) return null;
-    if (!this.games.has(id)) this.games.set(id, new Game(id));
-    return this.games.get(id);
+  static isValidType(type) {
+    return GAME_TYPES.includes(type);
   }
 
-  get(id) {
-    return this.games.get(id) || null;
+  static key(type, id) {
+    return `${type}:${id}`;
+  }
+
+  /** Creates the game if it doesn't exist yet, otherwise returns the existing one. */
+  getOrCreate(type, id) {
+    if (!GameManager.isValidType(type) || !GameManager.isValidId(id)) return null;
+    const key = GameManager.key(type, id);
+    if (!this.games.has(key)) this.games.set(key, new Game(type, id));
+    return this.games.get(key);
+  }
+
+  get(type, id) {
+    if (!GameManager.isValidType(type) || !GameManager.isValidId(id)) return null;
+    return this.games.get(GameManager.key(type, id)) || null;
   }
 
   /**
    * Public matchmaking: joins the first still-open game on the queue, or
-   * creates a fresh one and adds it to the queue. `makeId` mints a new id
+   * creates a fresh one and adds it to the queue. `generateId` mints a new id
    * (e.g. nanoid) only when a new game is actually needed.
    */
-  joinOrCreateAutomatch(makeId) {
+  joinOrCreateAutomatch(generateId) {
     while (this.publicQueue.length) {
       const id = this.publicQueue.shift();
-      const game = this.games.get(id);
+      const game = this.get("public", id);
       if (game && !game.playerOrder[1]) return id; // still has room for player2
       // else: stale entry (game filled/expired) - drop it and keep looking
     }
-    const id = makeId();
-    this.getOrCreate(id);
+    const id = generateId();
+    this.getOrCreate("public", id);
     this.publicQueue.push(id);
     return id;
   }
@@ -145,9 +162,9 @@ class GameManager {
   /** Removes games that have had no activity for GAME_TTL_MS. Call on an interval. */
   reap() {
     const now = Date.now();
-    for (const [id, game] of this.games) {
+    for (const [key, game] of this.games) {
       const stillConnected = [...game.sockets.values()].some((set) => set.size > 0);
-      if (!stillConnected && now - game.lastActivity > GAME_TTL_MS) this.games.delete(id);
+      if (!stillConnected && now - game.lastActivity > GAME_TTL_MS) this.games.delete(key);
     }
   }
 
@@ -156,4 +173,4 @@ class GameManager {
   }
 }
 
-export { GameManager, Game, GAME_ID_RE, GAME_TTL_MS };
+export { GameManager, Game, GAME_ID_RE, GAME_TYPES, GAME_TTL_MS };

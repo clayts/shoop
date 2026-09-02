@@ -2,7 +2,7 @@
     --padding: 16px; /* space around the outside of the grid */
     --gap: 8px; /* space between cells */
     --disc-scale: 0.85; /* disc diameter as a fraction of cell size */
-    --scale-duration: 0.5s; /* shrink/grow animation duration */
+    --scale-duration: 0.25s; /* shrink/grow animation duration */
     --wave-step: 40ms; /* stagger between adjacent rows */
 
     --background-color: #808e6c;
@@ -19,6 +19,14 @@ body {
     height: 100%;
     overflow: hidden;
     background: var(--background-color);
+}
+
+/* Toggled on <body> for the duration of a window resize so every layout
+   change (cells, discs, presence dots, the highlighted line) applies
+   instantly instead of animating. */
+body.resizing,
+body.resizing * {
+    transition: none !important;
 }
 
 .top-row {

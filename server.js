@@ -6,7 +6,7 @@ import http from "http";
 import express from "express";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-import { nanoid } from "nanoid";
+import { customAlphabet } from "nanoid";
 
 import { clientIdMiddleware } from "./server/id.js";
 import { GameManager } from "./server/manager.js";
@@ -16,7 +16,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PORT = process.env.PORT || 3000;
-const GAME_ID_LENGTH = 12; // ~71 bits of randomness with nanoid's default alphabet
+const GAME_ID_ALPHABET = "QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzxcvbnm1234567890";
+const GAME_ID_LENGTH = 16;
+const RANDOM_ID_GAME_TYPES = ["private", "local"]; // "public" gets its own route below (automatch)
+const NEW_GAME_RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const NEW_GAME_RATE_LIMIT_MAX = 20; // per window, per IP
+
+const generateGameId = customAlphabet(GAME_ID_ALPHABET, GAME_ID_LENGTH);
 
 const app = express();
 const gameManager = new GameManager();
@@ -31,60 +37,54 @@ app.use(clientIdMiddleware);
 
 // --- Rate limiting for game creation (cheap to abuse otherwise) ------------------
 const newGameLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  limit: 20, // 20 new games per minute per IP is generous; tune to your traffic
+  windowMs: NEW_GAME_RATE_LIMIT_WINDOW_MS,
+  limit: NEW_GAME_RATE_LIMIT_MAX,
   standardHeaders: true,
   legacyHeaders: false,
 });
 
 // --- Routes ------------------------------------------------------------------------
-// These three all end in a redirect to the plain /game/:id page below; role
-// assignment and gameplay always happen over that same page's WebSocket
-// connection (see src/handler.js), never here.
+// These all end in a redirect to /game/:type/:id; role assignment and
+// gameplay always happen over that page's WebSocket connection (see
+// server/handler.js), never here. Games are no longer explicitly
+// pre-created: any well-formed type/id is valid and is created lazily the
+// first time it's requested, so users can also type their own id directly
+// into /game/:type/:id.
 
-// Private: mint a fresh id and send the creator straight to it (share the URL to invite).
-app.get("/game/private", newGameLimiter, (req, res) => {
-  const id = nanoid(GAME_ID_LENGTH);
-  gameManager.getOrCreate(id); // pre-create so /game/:id and the WS upgrade agree it exists
-  res.redirect(302, `/game/${id}`);
+// Private & local: mint a fresh random id and send the visitor straight to it.
+RANDOM_ID_GAME_TYPES.forEach((type) => {
+  app.get(`/game/${type}`, newGameLimiter, (req, res) => {
+    res.redirect(302, `/game/${type}/${generateGameId()}`);
+  });
 });
 
 // Public: join the first open game in the automatch queue, or start a new one.
 app.get("/game/public", newGameLimiter, (req, res) => {
-  const id = gameManager.joinOrCreateAutomatch(() => nanoid(GAME_ID_LENGTH));
-  res.redirect(302, `/game/${id}`);
-});
-
-// Local: pass-and-play on one browser. Same page & game code as everything
-// else — only the `local` flag on the Game changes how roles/turns/presence
-// are resolved (src/manager.js, src/game.js).
-app.get("/game/local", newGameLimiter, (req, res) => {
-  const id = nanoid(GAME_ID_LENGTH);
-  gameManager.getOrCreate(id).local = true;
-  res.redirect(302, `/game/${id}`);
+  const id = gameManager.joinOrCreateAutomatch(generateGameId);
+  res.redirect(302, `/game/public/${id}`);
 });
 
 // Serves the page; role assignment itself happens over the WebSocket
 // connection the page opens, because that's the point at which we know the
 // visitor is actually here to participate, and it's naturally serialized (no
 // race between two concurrent HTTP requests).
-app.get("/game/:id", (req, res) => {
-  if (!GameManager.isValidId(req.params.id)) {
+app.get("/game/:type/:id", (req, res) => {
+  const { type, id } = req.params;
+  if (!GameManager.isValidType(type)) {
+    return res.status(404).send("Game not found: invalid type");
+  }
+  if (!GameManager.isValidId(id)) {
     return res.status(404).send("Game not found: invalid id");
   }
-  if (!gameManager.get(req.params.id)) {
-    // Games are only created via /game/private, /game/public, or /game/local —
-    // an unrecognized id (e.g. typed in by hand) is not a valid game.
-    return res.status(404).send("Game not found");
-  }
+  gameManager.getOrCreate(type, id);
   res.sendFile(path.join(__dirname, "client", "game.html"));
 });
 
 // Simple read-only status endpoint, handy for debugging / smoke tests.
-app.get("/game/:id/status", (req, res) => {
-  const game = gameManager.get(req.params.id);
+app.get("/game/:type/:id/status", (req, res) => {
+  const game = gameManager.get(req.params.type, req.params.id);
   if (!game) return res.status(404).json({ error: "not found" });
-  res.json({ id: game.id, local: game.local, presence: game.presenceSnapshot(), state: game.state });
+  res.json({ id: game.id, type: game.type, local: game.local, presence: game.presenceSnapshot(), state: game.state });
 });
 
 app.get("/health", (req, res) => {
