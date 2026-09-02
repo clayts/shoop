@@ -18,7 +18,6 @@ node server.js
 ```
 
 ## To Do
-- Fix multiplayer issue
-- Add way to join as spectator
 - Make spectators get win noise rather than lose noise
+- Add way to join as spectator specifically even if other players haven't joined yet?
 - Fix for WhatsApp browser?
