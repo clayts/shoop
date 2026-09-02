@@ -21,6 +21,10 @@ export const ICONS = {
   tick: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6"/></svg>`,
   volumeMuted: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="1em" height="1em" fill="currentColor"><path d="M80 416L128 416L262.1 535.2C268.5 540.9 276.7 544 285.2 544C304.4 544 320 528.4 320 509.2L320 130.8C320 111.6 304.4 96 285.2 96C276.7 96 268.5 99.1 262.1 104.8L128 224L80 224C53.5 224 32 245.5 32 272L32 368C32 394.5 53.5 416 80 416zM399 239C389.6 248.4 389.6 263.6 399 272.9L446 319.9L399 366.9C389.6 376.3 389.6 391.5 399 400.8C408.4 410.1 423.6 410.2 432.9 400.8L479.9 353.8L526.9 400.8C536.3 410.2 551.5 410.2 560.8 400.8C570.2 391.4 570.2 376.2 560.8 366.9L513.8 319.9L560.8 272.9C570.2 263.5 570.2 248.3 560.8 239C551.4 229.7 536.2 229.6 526.9 239L479.9 286L432.9 239C423.5 229.6 408.3 229.6 399 239z"/></svg>`,
   volumeHigh: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="1em" height="1em" fill="currentColor"><path d="M533.6 96.5C523.3 88.1 508.2 89.7 499.8 100C491.4 110.3 493 125.4 503.3 133.8C557.5 177.8 592 244.8 592 320C592 395.2 557.5 462.2 503.3 506.3C493 514.7 491.5 529.8 499.8 540.1C508.1 550.4 523.3 551.9 533.6 543.6C598.5 490.7 640 410.2 640 320C640 229.8 598.5 149.2 533.6 96.5zM473.1 171C462.8 162.6 447.7 164.2 439.3 174.5C430.9 184.8 432.5 199.9 442.8 208.3C475.3 234.7 496 274.9 496 320C496 365.1 475.3 405.3 442.8 431.8C432.5 440.2 431 455.3 439.3 465.6C447.6 475.9 462.8 477.4 473.1 469.1C516.3 433.9 544 380.2 544 320.1C544 260 516.3 206.3 473.1 171.1zM412.6 245.5C402.3 237.1 387.2 238.7 378.8 249C370.4 259.3 372 274.4 382.3 282.8C393.1 291.6 400 305 400 320C400 335 393.1 348.4 382.3 357.3C372 365.7 370.5 380.8 378.8 391.1C387.1 401.4 402.3 402.9 412.6 394.6C434.1 376.9 448 350.1 448 320C448 289.9 434.1 263.1 412.6 245.5zM80 416L128 416L262.1 535.2C268.5 540.9 276.7 544 285.2 544C304.4 544 320 528.4 320 509.2L320 130.8C320 111.6 304.4 96 285.2 96C276.7 96 268.5 99.1 262.1 104.8L128 224L80 224C53.5 224 32 245.5 32 272L32 368C32 394.5 53.5 416 80 416z"/></svg>`,
+  spinner: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" fill="currentColor"><!--!Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2026 Fonticons, Inc.--><path d="M272 112C272 85.5 293.5 64 320 64C346.5 64 368 85.5 368 112C368 138.5 346.5 160 320 160C293.5 160 272 138.5 272 112zM272 528C272 501.5 293.5 480 320 480C346.5 480 368 501.5 368 528C368 554.5 346.5 576 320 576C293.5 576 272 554.5 272 528zM112 272C138.5 272 160 293.5 160 320C160 346.5 138.5 368 112 368C85.5 368 64 346.5 64 320C64 293.5 85.5 272 112 272zM480 320C480 293.5 501.5 272 528 272C554.5 272 576 293.5 576 320C576 346.5 554.5 368 528 368C501.5 368 480 346.5 480 320zM139 433.1C157.8 414.3 188.1 414.3 206.9 433.1C225.7 451.9 225.7 482.2 206.9 501C188.1 519.8 157.8 519.8 139 501C120.2 482.2 120.2 451.9 139 433.1zM139 139C157.8 120.2 188.1 120.2 206.9 139C225.7 157.8 225.7 188.1 206.9 206.9C188.1 225.7 157.8 225.7 139 206.9C120.2 188.1 120.2 157.8 139 139zM501 433.1C519.8 451.9 519.8 482.2 501 501C482.2 519.8 451.9 519.8 433.1 501C414.3 482.2 414.3 451.9 433.1 433.1C451.9 414.3 482.2 414.3 501 433.1z"><animateTransform attributeName="transform" type="rotate" from="0 320 320" to="360 320 320" dur="2s" repeatCount="indefinite"/></path></svg>`,
+
+
+  // <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="1em" height="1em" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="25" cy="25" r="20" stroke-width="4" stroke-opacity="0.25"/><path d="M25 5a20 20 0 0 1 20 20" stroke-width="4"><animateTransform attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur="0.8s" repeatCount="indefinite"/></path></svg>
 };
 
 // Reads a numeric CSS custom property from the document root, falling back
@@ -138,8 +142,14 @@ export class Board {
     const spectatorCount = presence?.spectatorCount ?? 0;
     const hasSpectators = spectatorCount > 0;
 
-    this.presenceElements.player1.style.setProperty(CSS_VARIABLES.presenceDotScale, isPlayer1Connected ? 1 : 0);
-    this.presenceElements.player2.style.setProperty(CSS_VARIABLES.presenceDotScale, isPlayer2Connected ? 1 : 0);
+    // Player dots always stay visible: while waiting for a player to connect,
+    // show a spinner in place of their icon rather than hiding the dot.
+    this.presenceElements.player1.style.setProperty(CSS_VARIABLES.presenceDotScale, 1);
+    this.presenceElements.player1.innerHTML = isPlayer1Connected ? ICONS.person : ICONS.spinner;
+
+    this.presenceElements.player2.style.setProperty(CSS_VARIABLES.presenceDotScale, 1);
+    this.presenceElements.player2.innerHTML = isPlayer2Connected ? ICONS.person : ICONS.spinner;
+
     this.presenceElements.spectators.style.setProperty(CSS_VARIABLES.presenceDotScale, hasSpectators ? 1 : 0);
     this.presenceElements.spectatorCount.textContent = spectatorCount;
   }
@@ -169,8 +179,8 @@ export class Board {
     const presenceStatus = document.createElement("div");
     presenceStatus.className = "presence-status";
     presenceStatus.innerHTML = `
-      <span class="presence-dot presence-player1">${ICONS.person}</span>
-      <span class="presence-dot presence-player2">${ICONS.person}</span>
+      <span class="presence-dot presence-player1">${ICONS.spinner}</span>
+      <span class="presence-dot presence-player2">${ICONS.spinner}</span>
       <span class="presence-dot presence-spectators">${ICONS.person}<span class="presence-lozenge"></span></span>
     `;
     topRow.appendChild(presenceStatus);
