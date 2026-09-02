@@ -286,7 +286,10 @@ class Board {
     this.positionDisc(disc, column, -1); // slide horizontally to the target column
 
     window.setTimeout(() => {
-      this.positionDisc(disc, column, 0); // then drop straight down into place
+      // Look up the row at fire time (rather than assuming 0): if another
+      // disc landed in this column in the meantime, this one has already
+      // been bumped up, and this must land it there instead of undoing that.
+      this.positionDisc(disc, column, stack.indexOf(disc));
     }, this.scaleDurationMs);
 
     stack.unshift(disc);
