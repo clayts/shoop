@@ -18,3 +18,5 @@ node server.js
 ```
 
 ## To Do
+- Fix multiplayer issue
+- Add way to join as spectator
