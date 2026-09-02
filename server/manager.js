@@ -1,27 +1,6 @@
 "use strict";
 
-/**
- * In-memory game registry.
- *
- * Games are identified by a (type, id) pair — type is "private", "public",
- * or "local", and id is a user-visible string that no longer has to be
- * server-minted, so the same id can exist once per type without colliding.
- * Internally each game is stored under the composite key "type:id".
- *
- * Each Game tracks:
- *  - roles:   Map<clientId, 'player1' | 'player2' | 'spectator'>   (sticky, survives reconnects)
- *  - sockets: Map<clientId, Set<WebSocket>>                        (live connections, may be empty)
- *  - state:   freeform object your playMove owns and mutates (board position, turn, scores, ...)
- *  - local:   true for a "pass and play" game where one browser plays both
- *             sides — changes role assignment and presence reporting below,
- *             and how server/board.js resolves the mover's role.
- *
- * This is a single-process store. See README.md "Scaling beyond one instance" for
- * how to swap this out for Redis (or another shared store) without touching the
- * HTTP/WS handlers.
- */
-
-import { initialState } from "./board.js";
+import { initialState } from "./rules.js";
 
 const GAME_ID_RE = /^[A-Za-z0-9-]{1,64}$/;
 const GAME_TYPES = ["private", "public", "local"];
@@ -141,11 +120,6 @@ class GameManager {
     return this.games.get(GameManager.key(type, id)) || null;
   }
 
-  /**
-   * Public matchmaking: joins the first still-open game on the queue, or
-   * creates a fresh one and adds it to the queue. `generateId` mints a new id
-   * (e.g. nanoid) only when a new game is actually needed.
-   */
   joinOrCreateAutomatch(generateId) {
     while (this.publicQueue.length) {
       const id = this.publicQueue.shift();

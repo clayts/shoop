@@ -46,7 +46,7 @@ export class Board {
     this.padding = readRootCssNumber("--padding", 0);
     this.gap = readRootCssNumber("--gap", 0);
     this.discScale = readRootCssNumber("--disc-scale", 0.85);
-    this.scaleDurationMs = readRootCssNumber("--scale-duration", 0.3) * 1000;
+    this.scaleDurationMs = readRootCssNumber("--scale-duration", 0.1) * 1000;
     this.cellSize = 0;
 
     this.role = null;

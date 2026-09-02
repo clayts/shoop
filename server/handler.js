@@ -1,7 +1,7 @@
 "use strict";
 
 import { WebSocketServer } from "ws";
-import { playMove, initialState } from "./board.js";
+import { playMove, initialState } from "./rules.js";
 import { readClientId } from "./id.js";
 
 const MAX_MESSAGE_BYTES = 16 * 1024; // 16KB per message is plenty for a move; tune as needed
@@ -133,7 +133,8 @@ function attachWebSocketServer(server, gameManager, { path = "/ws" } = {}) {
           if (game.state.line == null) {
             return safeSend(ws, { type: "error", reason: "game is not over yet" });
           }
-          game.state = initialState();
+          const nextStarter = game.state.startingPlayer === "player1" ? "player2" : "player1";
+          game.state = initialState(nextStarter);
           game.touch();
           broadcast(game, { type: "restart", state: game.state, presence: game.presenceSnapshot() });
           break;
