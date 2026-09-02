@@ -33,7 +33,7 @@ body.resizing * {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin: 0 calc(var(--cell-size) / 2);
+    margin: 0 calc((var(--cell-size) + var(--gap)) / 2);
 }
 
 .top-row-right {
