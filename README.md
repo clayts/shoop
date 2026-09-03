@@ -18,4 +18,6 @@ node server.js
 ```
 
 ## To Do
-- broadcast - do we really need to broadcast with an excluded socket, etc, if we only ever have two players in a game..?
+- draw when game is full
+- allow draws when both players get lines
+- warn user when reconnecting
