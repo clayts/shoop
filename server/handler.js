@@ -124,6 +124,15 @@ function attachSocketServer(server, gameManager) {
     socket.on("ping", () => {
       if (rateLimited()) return;
       safeSend(socket, "pong");
+		});
+
+    // Engine.IO-level close reason, logged separately from the
+    // Socket.IO-level "disconnect" below because it's more granular:
+    // "ping timeout" points at a missed heartbeat (server/network too slow
+    // to respond), "transport close"/"transport error" point at something
+    // outside Socket.IO actively killing the connection (e.g. a proxy).
+    socket.conn.on("close", (reason, description) => {
+      console.log(`[${gameType}:${gameId}] engine.io close: reason=${reason}`, description || "");
     });
 
     socket.on("disconnect", () => {
