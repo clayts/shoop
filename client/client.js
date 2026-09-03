@@ -69,7 +69,10 @@ const [, gameType, gameId] = location.pathname.split("/").filter(Boolean);
 // gameType/gameId travel in the handshake query rather than the socket URL
 // path, so every game shares one connection/namespace instead of the server
 // accumulating one per game for its whole lifetime.
-const socket = io({ query: { gameType, gameId } });
+const socket = io({
+	query: { gameType, gameId },
+	// transports: ["websocket"],
+});
 
 socket.onAnyOutgoing((event, ...args) => console.log(`sent: ${event}`, ...args));
 socket.onAny((event, ...args) => console.log(`received: ${event}`, ...args));
