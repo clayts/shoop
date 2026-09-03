@@ -66,36 +66,28 @@ function checkLine(board, player) {
   return null; // No winner found
 }
 
-function play(game, clientId, payload) {
-  console.log("-----------------------------");
-  console.log("validating:");
-  console.log("game:");
-  console.log(game);
-  console.log("clientId:");
-  console.log(clientId);
-  console.log("payload:");
-  console.log(payload);
-  console.log("-----------------------------");
-
+// `role` is whichever seat the calling socket currently holds — the handler
+// determines this at connection time (see server/manager.js's assignSeat)
+// and passes it straight through; there's no separate identity to look up.
+function play(game, role, payload) {
   if (game.state.line != null) {
     return { valid: false, reason: `game has been won` };
   }
 
-  const assignedRole = game.roles.get(clientId);
-  if (assignedRole !== "player1" && assignedRole !== "player2") {
+  if (role !== "player1" && role !== "player2") {
     return { valid: false, reason: "only players may move" };
   }
 
-  // In local ("pass and play") games, one connection is sticky-assigned
-  // player1, but it plays both sides — the side actually moving is whoever
-  // the game state says has the turn, not the sticky assignment.
-  const role = game.local ? game.state.turn : assignedRole;
+  // In local ("pass and play") games, one connection holds the only seat but
+  // plays both sides — the side actually moving is whoever the game state
+  // says has the turn, not the seat itself.
+  const activeRole = game.local ? game.state.turn : role;
 
   if (payload == null || typeof payload !== "object") {
     return { valid: false, reason: "payload must be a JSON object" };
   }
 
-  if (game.state.turn !== role) {
+  if (game.state.turn !== activeRole) {
     return { valid: false, reason: `not your turn (waiting on ${game.state.turn})` };
   }
 
@@ -103,7 +95,7 @@ function play(game, clientId, payload) {
     let column = payload["column"];
     if (column in game.state.board) {
       if (game.state.board[column].length < BOARD_HEIGHT) {
-        game.state.board[column].unshift(role);
+        game.state.board[column].unshift(activeRole);
       } else {
         return { valid: false, reason: `column is full` };
       }
@@ -114,22 +106,17 @@ function play(game, clientId, payload) {
     return { valid: false, reason: `no column specified` };
   }
 
-  const opponent = role === "player1" ? "player2" : "player1";
+  const opponent = activeRole === "player1" ? "player2" : "player1";
 
   // The opponent gets priority: if they already have a winning line on the
   // board, that takes precedence over any line the mover just formed.
-  game.state.line = checkLine(game.state.board, opponent) || checkLine(game.state.board, role);
+  game.state.line = checkLine(game.state.board, opponent) || checkLine(game.state.board, activeRole);
 
   if (!game.state.line) {
     game.state.turn = opponent;
   }
 
-  console.log("-----------------------------");
-  console.log("state updated:");
-  console.dir(game.state, { depth: null });
-  console.log("-----------------------------");
-
-  return { valid: true, role };
+  return { valid: true, role: activeRole };
 }
 
 export { play as playMove, setup as initialState };

@@ -1,0 +1,109 @@
+/* Self-hosted Courier Prime (OFL-licensed) — see fonts/LICENSE.
+   Regular + bold + italic match the weights/styles actually used below. */
+@font-face {
+    font-family: 'Courier Prime';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('fonts/CourierPrime-Regular.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Courier Prime';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url('fonts/CourierPrime-Bold.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Courier Prime';
+    font-style: italic;
+    font-weight: 400;
+    font-display: swap;
+    src: url('fonts/CourierPrime-Italic.woff2') format('woff2');
+}
+
+:root {
+    --bg-color: #808e6c;
+    --text-color: #ffffff;
+    --muted-color: rgba(255, 255, 255, 0.75);
+    --border-color: rgba(255, 255, 255, 0.2);
+    --hover-bg: rgba(255, 255, 255, 0.2);
+    --font-stack: 'Courier Prime', Courier, 'Courier New', monospace;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: var(--font-stack);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 2rem 1rem;
+}
+
+.container {
+    width: 100%;
+    max-width: 600px;
+}
+
+header {
+    text-align: center;
+    margin-bottom: 3rem;
+}
+
+h1 {
+    font-size: 3rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+}
+
+.menu {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.menu-item {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    height: 110px; /* Fixed uniform height */
+    gap: 0.5rem;
+    padding: 1.25rem;
+    text-decoration: none;
+    color: inherit;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: transparent;
+    transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+
+.menu-item:hover {
+    background-color: var(--hover-bg);
+    border-color: rgba(255, 255, 255, 0.4);
+    transform: translateY(-1px);
+}
+
+.title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+}
+
+.description {
+    font-size: 0.9rem;
+    color: var(--muted-color);
+    line-height: 1.4;
+}

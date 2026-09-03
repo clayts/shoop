@@ -18,4 +18,4 @@ node server.js
 ```
 
 ## To Do
-- New joining logic - get rid of cookies and get rid of spectators. The first two players to grab a socket can play. Further players get a 'game full' error page. If a player is disconnected anyone may connect and take over the seat.
+- broadcast - do we really need to broadcast with an excluded socket, etc, if we only ever have two players in a game..?

@@ -8,9 +8,8 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { customAlphabet } from "nanoid";
 
-import { clientIdMiddleware } from "./server/id.js";
 import { GameManager } from "./server/manager.js";
-import { attachWebSocketServer } from "./server/handler.js";
+import { attachSocketServer } from "./server/handler.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,11 +28,26 @@ const gameManager = new GameManager();
 
 // --- Security & platform basics ---------------------------------------------------
 app.set("trust proxy", 1); // needed so req.secure / X-Forwarded-Proto work behind a reverse proxy
-app.use(helmet({ contentSecurityPolicy: false })); // enable & configure this once you know your page's script sources
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      useDefaults: true, // keep helmet's other sane defaults (object-src 'none', base-uri 'self', etc.)
+      directives: {
+        // Everything is self-hosted now — the Socket.IO client bundle is
+        // served by our own server (see server/handler.js) and Courier
+        // Prime is bundled under client/fonts — so plain 'self' covers it.
+        "script-src": ["'self'"],
+        "style-src": ["'self'"],
+        "font-src": ["'self'"],
+        // Socket.IO connects back to the same origin (both the polling
+        // fallback and the ws/wss upgrade) — nothing cross-origin to allow.
+        "connect-src": ["'self'"],
+        "img-src": ["'self'", "data:"],
+      },
+    },
+  }),
+);
 app.disable("x-powered-by");
-
-// --- Stable per-browser identity (drives sticky role assignment) -----------------
-app.use(clientIdMiddleware);
 
 // --- Rate limiting for game creation (cheap to abuse otherwise) ------------------
 const newGameLimiter = rateLimit({
@@ -45,7 +59,7 @@ const newGameLimiter = rateLimit({
 
 // --- Routes ------------------------------------------------------------------------
 // These all end in a redirect to /game/:type/:id; role assignment and
-// gameplay always happen over that page's WebSocket connection (see
+// gameplay always happen over that page's Socket.IO connection (see
 // server/handler.js), never here. Games are no longer explicitly
 // pre-created: any well-formed type/id is valid and is created lazily the
 // first time it's requested, so users can also type their own id directly
@@ -64,10 +78,15 @@ app.get("/game/public", newGameLimiter, (req, res) => {
   res.redirect(302, `/game/public/${id}`);
 });
 
-// Serves the page; role assignment itself happens over the WebSocket
+// Serves the page; seat assignment itself happens over the Socket.IO
 // connection the page opens, because that's the point at which we know the
 // visitor is actually here to participate, and it's naturally serialized (no
-// race between two concurrent HTTP requests).
+// race between two concurrent HTTP requests). There's no identity behind a
+// seat — whoever's socket claims it first (including a returning player
+// after someone else's dropped) gets to play; a third visitor sees this
+// "full" page instead. (A socket connecting mid-race, after this check but
+// before it lands a seat, gets the same outcome via the socket's own
+// "full" message — see server/handler.js.)
 app.get("/game/:type/:id", (req, res) => {
   const { type, id } = req.params;
   if (!GameManager.isValidType(type)) {
@@ -76,7 +95,10 @@ app.get("/game/:type/:id", (req, res) => {
   if (!GameManager.isValidId(id)) {
     return res.status(404).send("Game not found: invalid id");
   }
-  gameManager.getOrCreate(type, id);
+  const game = gameManager.getOrCreate(type, id);
+  if (game.isFull()) {
+    return res.status(409).sendFile(path.join(__dirname, "client", "full.html"));
+  }
   res.sendFile(path.join(__dirname, "client", "game.html"));
 });
 
@@ -93,9 +115,9 @@ app.get("/health", (req, res) => {
 
 app.use(express.static(path.join(__dirname, "client")));
 
-// --- HTTP + WebSocket server -------------------------------------------------------
+// --- HTTP + Socket.IO server -------------------------------------------------------
 const server = http.createServer(app);
-attachWebSocketServer(server, gameManager, { path: "/ws" });
+attachSocketServer(server, gameManager);
 
 // Periodic cleanup of abandoned games so memory doesn't grow unbounded.
 const reapInterval = setInterval(() => gameManager.reap(), 15 * 60 * 1000);

@@ -58,7 +58,6 @@ export class Board {
     this.active = false; // both players connected
     this.gameOver = false;
     this.isLocal = false; // "pass and play": one connection moves for both colours
-    this.isSpectator = false;
 
     this.container.addEventListener("click", (event) => {
       // Which column (if any) the click landed in.
@@ -91,11 +90,9 @@ export class Board {
   }
 
   // Called once, from the server's initial message, to record whether this
-  // is a local ("pass and play") game and whether this connection is just
-  // spectating, then sets the starting role.
+  // is a local ("pass and play") game, then sets the starting role.
   setGameMode(local, role) {
     this.isLocal = !!local;
-    this.isSpectator = role == null;
     this.setRole(role);
   }
 
@@ -105,10 +102,8 @@ export class Board {
   // fixed side; the preview is also recreated so its scale-in animation
   // plays for each turn.
   applyTurn(turn) {
-    if (this.isLocal && !this.isSpectator) this.setRole(turn);
-    this.setTurn(turn, {
-      recreatePreview: this.isLocal && !this.isSpectator,
-    });
+    if (this.isLocal) this.setRole(turn);
+    this.setTurn(turn, { recreatePreview: this.isLocal });
   }
 
   setTurn(turn, { recreatePreview = false } = {}) {
@@ -139,8 +134,6 @@ export class Board {
   updatePresence(presence) {
     const isPlayer1Connected = !!presence?.player1Connected;
     const isPlayer2Connected = !!presence?.player2Connected;
-    const spectatorCount = presence?.spectatorCount ?? 0;
-    const hasSpectators = spectatorCount > 0;
 
     // Player dots always stay visible: while waiting for a player to connect,
     // show a spinner in place of their icon rather than hiding the dot.
@@ -149,9 +142,6 @@ export class Board {
 
     this.presenceElements.player2.style.setProperty(CSS_VARIABLES.presenceDotScale, 1);
     this.presenceElements.player2.innerHTML = isPlayer2Connected ? ICONS.person : ICONS.spinner;
-
-    this.presenceElements.spectators.style.setProperty(CSS_VARIABLES.presenceDotScale, hasSpectators ? 1 : 0);
-    this.presenceElements.spectatorCount.textContent = spectatorCount;
   }
 
   // Updates connection/active state and the presence dots together.
@@ -175,20 +165,17 @@ export class Board {
     topRow.className = "top-row";
     topRow.style.gridColumn = "1 / -1";
 
-    // Presence status (left side): dots for player1, player2, and spectators.
+    // Presence status (left side): dots for player1 and player2.
     const presenceStatus = document.createElement("div");
     presenceStatus.className = "presence-status";
     presenceStatus.innerHTML = `
       <span class="presence-dot presence-player1">${ICONS.spinner}</span>
       <span class="presence-dot presence-player2">${ICONS.spinner}</span>
-      <span class="presence-dot presence-spectators">${ICONS.person}<span class="presence-lozenge"></span></span>
     `;
     topRow.appendChild(presenceStatus);
     this.presenceElements = {
       player1: presenceStatus.querySelector(".presence-player1"),
       player2: presenceStatus.querySelector(".presence-player2"),
-      spectators: presenceStatus.querySelector(".presence-spectators"),
-      spectatorCount: presenceStatus.querySelector(".presence-lozenge"),
     };
 
     // Right side (link/mute buttons): populated by the caller.

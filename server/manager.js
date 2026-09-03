@@ -13,78 +13,80 @@ class Game {
     this.local = type === "local";
     this.createdAt = Date.now();
     this.lastActivity = Date.now();
-    this.roles = new Map(); // clientId -> role
-    this.playerOrder = []; // [clientIdOfPlayer1, clientIdOfPlayer2]
-    this.sockets = new Map(); // clientId -> Set<ws>
-    this.state = initialState(); // handed to playMove, yours to define
+
+    // Seats are held by a live socket connection, not a persistent identity — there
+    // are no cookies and no spectators, so "who's in the game" is just
+    // "whichever two sockets currently hold player1/player2". Local games
+    // only ever use player1: that one connection plays both colours (see
+    // rules.js), so player2 is never handed out.
+    this.seats = { player1: null, player2: null };
+
+    this.state = initialState();
   }
 
   touch() {
     this.lastActivity = Date.now();
   }
 
-  /** Returns the existing role for a client, or assigns the next available one. */
-  getOrAssignRole(clientId) {
-    if (this.roles.has(clientId)) return this.roles.get(clientId);
+  /** True once every seat this game type offers is held by a live socket. */
+  isFull() {
+    return this.local ? this.seats.player1 != null : this.seats.player1 != null && this.seats.player2 != null;
+  }
 
-    // Local games have one real player (everyone else who opens the link is
-    // just watching) — the client alternates which colour it plays as.
-    let role;
-    if (this.local) {
-      role = this.playerOrder[0] ? "spectator" : "player1";
-    } else if (!this.playerOrder[0]) {
-      role = "player1";
-    } else if (!this.playerOrder[1]) {
-      role = "player2";
-    } else {
-      role = "spectator";
+  /**
+   * Gives `ws` the first open seat and returns its role ("player1" /
+   * "player2"), or null if the game is already full. Anyone with the link
+   * can claim a seat that's open — whether because nobody's taken it yet, or
+   * because whoever held it disconnected.
+   */
+  assignSeat(ws) {
+    if (this.seats.player1 == null) {
+      this.seats.player1 = ws;
+      this.touch();
+      return "player1";
     }
-
-    if (role === "player1") this.playerOrder[0] = clientId;
-    if (role === "player2") this.playerOrder[1] = clientId;
-    this.roles.set(clientId, role);
-    this.touch();
-    return role;
+    if (!this.local && this.seats.player2 == null) {
+      this.seats.player2 = ws;
+      this.touch();
+      return "player2";
+    }
+    return null;
   }
 
-  addSocket(clientId, ws) {
-    if (!this.sockets.has(clientId)) this.sockets.set(clientId, new Set());
-    this.sockets.get(clientId).add(ws);
-    this.touch();
+  /** Frees whichever seat `ws` holds (if any), so the next visitor can take it over. */
+  releaseSeat(ws) {
+    if (this.seats.player1 === ws) this.seats.player1 = null;
+    else if (this.seats.player2 === ws) this.seats.player2 = null;
   }
 
-  removeSocket(clientId, ws) {
-    const set = this.sockets.get(clientId);
-    if (!set) return;
-    set.delete(ws);
-    if (set.size === 0) this.sockets.delete(clientId);
+  /**
+   * The socket in the *other* seat from `ws`, or null if there isn't one.
+   * Used to notify just the other player about something — e.g. a new
+   * connection — without echoing it back to whoever triggered it.
+   */
+  opponentOf(ws) {
+    if (this.seats.player1 === ws) return this.seats.player2;
+    if (this.seats.player2 === ws) return this.seats.player1;
+    return null;
   }
 
-  isConnected(clientId) {
-    return !!this.sockets.get(clientId)?.size;
-  }
-
-  /** All currently-open sockets across every client in this game. */
+  /** All currently-open sockets in this game. */
   *allSockets() {
-    for (const set of this.sockets.values()) yield* set;
+    if (this.seats.player1) yield this.seats.player1;
+    if (this.seats.player2) yield this.seats.player2;
   }
 
   presenceSnapshot() {
-    const spectatorCount = [...this.roles.entries()].filter(
-      ([clientId, role]) => role === "spectator" && this.isConnected(clientId),
-    ).length;
-
     // Local: one connection plays both sides, so "both players" are connected
     // together, as a pair, whenever that one connection is.
     if (this.local) {
-      const connected = this.playerOrder[0] ? this.isConnected(this.playerOrder[0]) : false;
-      return { player1Connected: connected, player2Connected: connected, spectatorCount };
+      const connected = this.seats.player1 != null;
+      return { player1Connected: connected, player2Connected: connected };
     }
 
     return {
-      player1Connected: this.playerOrder[0] ? this.isConnected(this.playerOrder[0]) : false,
-      player2Connected: this.playerOrder[1] ? this.isConnected(this.playerOrder[1]) : false,
-      spectatorCount,
+      player1Connected: this.seats.player1 != null,
+      player2Connected: this.seats.player2 != null,
     };
   }
 }
@@ -124,7 +126,7 @@ class GameManager {
     while (this.publicQueue.length) {
       const id = this.publicQueue.shift();
       const game = this.get("public", id);
-      if (game && !game.playerOrder[1]) return id; // still has room for player2
+      if (game && game.seats.player2 == null) return id; // still has room for player2
       // else: stale entry (game filled/expired) - drop it and keep looking
     }
     const id = generateId();
@@ -137,7 +139,7 @@ class GameManager {
   reap() {
     const now = Date.now();
     for (const [key, game] of this.games) {
-      const stillConnected = [...game.sockets.values()].some((set) => set.size > 0);
+      const stillConnected = game.seats.player1 != null || game.seats.player2 != null;
       if (!stillConnected && now - game.lastActivity > GAME_TTL_MS) this.games.delete(key);
     }
   }

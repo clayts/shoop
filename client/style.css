@@ -72,26 +72,6 @@ body.resizing * {
     color: var(--player2-color);
 }
 
-.presence-dot.presence-spectators {
-    width: calc(var(--cell-size) * 2 + var(--gap));
-    justify-content: flex-start;
-    color: var(--ui-text-color);
-    gap: 4px;
-}
-
-.presence-dot.presence-spectators svg {
-    width: var(--cell-size);
-    height: var(--cell-size);
-    flex-shrink: 0;
-}
-
-.presence-lozenge {
-    color: var(--ui-text-color);
-    font-family: sans-serif;
-    font-weight: 600;
-    font-size: calc(var(--cell-size) * 0.65);
-}
-
 .bottom-row {
     display: flex;
     justify-content: center;
