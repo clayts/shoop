@@ -104,8 +104,12 @@ socket.addEventListener("message", (event) => {
     }
 
     case "move": {
+      // Captured before playDisc, which immediately unshifts the new disc
+      // onto the stack.
+      const discsInColumn = board.stacks[message.payload.column].length;
+
       board.playDisc(message.payload.column, message.role);
-      sound.play(moveSound(message.payload.column, board.scaleDurationMs / 1000));
+      sound.play(moveSound(message.payload.column, board.scaleDurationMs / 1000, discsInColumn));
 
       if (message.line) {
         board.setGameOver(true);

@@ -33,10 +33,16 @@ export const SOUNDS = {
   lose: { notes: [2, 1, 0, -1].map((degree) => note(degree, 0.2)), waveform: "sine", gain: 0.25 },
 };
 
-// A single note based on how far right the column is: the leftmost column
-// plays the root, and each column further right climbs one scale degree.
-export function moveSound(column, duration) {
-  return { notes: [note(column, duration)], waveform: "triangle", gain: 0.25 };
+// A chord based on how far right the column is (leftmost column plays the
+// root, each column further right climbs one scale degree) and how many
+// discs are already stacked in that column: the second note climbs further
+// by that many scale degrees, and both notes play simultaneously.
+export function moveSound(column, duration, discsInColumn) {
+  return {
+    notes: [[note(column, duration), note(column + discsInColumn, duration)]],
+    waveform: "triangle",
+    gain: 0.25,
+  };
 }
 
 // Owns the AudioContext (created lazily, on first unmute) and mute state, and
@@ -54,23 +60,32 @@ export class SoundPlayer {
     return this.muted;
   }
 
+  // Each entry in `notes` is either a single {frequency, duration} note, or
+  // an array of them (a chord) to be played simultaneously. Sequential
+  // entries still advance along one timeline, one after another; each note
+  // gets its own oscillator so simultaneous notes can each hold their own
+  // frequency.
   play({ notes, waveform, gain }) {
     if (this.muted || !this.#context) return;
 
-    const oscillator = this.#context.createOscillator();
-    const gainNode = this.#context.createGain();
-    oscillator.type = waveform;
-    gainNode.gain.value = gain;
-    oscillator.connect(gainNode).connect(this.#context.destination);
-
     let time = this.#context.currentTime;
 
-    notes.forEach(({ frequency, duration = 0.3 }) => {
-      oscillator.frequency.setValueAtTime(frequency, time);
-      time += duration;
-    });
+    notes.forEach((step) => {
+      const chordNotes = Array.isArray(step) ? step : [step];
+      const stepDuration = Math.max(...chordNotes.map(({ duration = 0.3 }) => duration));
 
-    oscillator.start();
-    oscillator.stop(time);
+      chordNotes.forEach(({ frequency, duration = 0.3 }) => {
+        const oscillator = this.#context.createOscillator();
+        const gainNode = this.#context.createGain();
+        oscillator.type = waveform;
+        gainNode.gain.value = gain;
+        oscillator.connect(gainNode).connect(this.#context.destination);
+        oscillator.frequency.setValueAtTime(frequency, time);
+        oscillator.start(time);
+        oscillator.stop(time + duration);
+      });
+
+      time += stepDuration;
+    });
   }
 }
