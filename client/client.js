@@ -72,6 +72,8 @@ const [, gameType, gameId] = location.pathname.split("/").filter(Boolean);
 const socket = io({
 	query: { gameType, gameId },
 	// transports: ["websocket"],
+  pingInterval: 10000,
+  pingTimeout: 5000,
 });
 
 socket.onAnyOutgoing((event, ...args) => console.log(`sent: ${event}`, ...args));
