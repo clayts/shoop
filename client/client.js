@@ -72,8 +72,6 @@ const [, gameType, gameId] = location.pathname.split("/").filter(Boolean);
 const socket = io({
 	query: { gameType, gameId },
 	// transports: ["websocket"],
-  pingInterval: 10000,
-  pingTimeout: 5000,
 });
 
 socket.onAnyOutgoing((event, ...args) => console.log(`sent: ${event}`, ...args));
@@ -140,6 +138,14 @@ socket.on("restart", (message) => {
 
 socket.on("error", () => {
   sound.play(SOUNDS.error);
+});
+
+socket.on("disconnect", () => {
+  board.setReconnecting(true);
+});
+
+socket.on("connect", () => {
+  board.setReconnecting(false);
 });
 
 let fullRetries = 0;

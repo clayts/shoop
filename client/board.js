@@ -142,12 +142,41 @@ export class Board {
 
     this.presenceElements.player2.style.setProperty(CSS_VARIABLES.presenceDotScale, 1);
     this.presenceElements.player2.innerHTML = isPlayer2Connected ? ICONS.person : ICONS.spinner;
+
+    // If we're mid local-reconnect, keep showing our own spinner regardless
+    // of what the server last reported (it doesn't know we've dropped yet).
+    if (this.reconnecting && this.role) {
+      this.presenceElements[this.role].style.setProperty(CSS_VARIABLES.presenceDotScale, 1);
+      this.presenceElements[this.role].innerHTML = ICONS.spinner;
+    }
   }
 
   // Updates connection/active state and the presence dots together.
   applyPresence(presence) {
+    this.lastPresence = presence;
     this.setActive(!!(presence?.player1Connected && presence?.player2Connected));
     this.updatePresence(presence);
+  }
+
+  // Called when this client's own socket drops/reconnects (as opposed to the
+  // opponent's, which comes from the server via applyPresence). Forces our
+  // own presence dot to the spinner and shows a "Reconnecting..." label in
+  // the bottom row until the connection is restored.
+  setReconnecting(reconnecting) {
+    this.reconnecting = reconnecting;
+
+    if (this.reconnectingLabel) {
+      this.reconnectingLabel.style.display = reconnecting ? "inline-flex" : "none";
+    }
+
+    if (reconnecting && this.role) {
+      this.presenceElements[this.role].style.setProperty(CSS_VARIABLES.presenceDotScale, 1);
+      this.presenceElements[this.role].innerHTML = ICONS.spinner;
+    } else if (!reconnecting && this.lastPresence) {
+      // Restore whatever the server last told us, now that we're not
+      // forcing our own dot to the spinner anymore.
+      this.updatePresence(this.lastPresence);
+    }
   }
 
   // Builds an empty rows x columns board, plus an invisible row above (toolbar)
@@ -215,6 +244,13 @@ export class Board {
     });
 
     bottomRow.appendChild(this.restartButton);
+
+    this.reconnectingLabel = document.createElement("span");
+    this.reconnectingLabel.className = "reconnecting-label";
+    this.reconnectingLabel.textContent = "Reconnecting...";
+    this.reconnectingLabel.style.display = this.reconnecting ? "inline-flex" : "none";
+    bottomRow.appendChild(this.reconnectingLabel);
+
     fragment.appendChild(bottomRow);
 
     this.container.appendChild(fragment);
