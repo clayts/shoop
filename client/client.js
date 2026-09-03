@@ -142,9 +142,11 @@ socket.on("error", () => {
   sound.play(SOUNDS.error);
 });
 
+let fullRetries = 0;
 socket.on("full", () => {
-  // Someone else grabbed the second seat between this page loading and its
-  // socket connecting. Reload: the server now sees the game as full and
-  // will serve the "game full" page instead.
-  window.location.reload();
+  if (fullRetries++ < 10) {
+    setTimeout(() => socket.connect(), 1000 * (fullRetries + 1));
+  } else {
+    window.location.reload();
+  }
 });
