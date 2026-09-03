@@ -23,7 +23,8 @@ function broadcast(game, event, payload) {
 }
 
 function attachSocketServer(server, gameManager) {
-  const io = new Server(server, {
+	const io = new Server(server, {
+		transports: ['websocket'],
     maxHttpBufferSize: MAX_MESSAGE_BYTES,
   });
 
