@@ -120,8 +120,8 @@ const server = http.createServer(app);
 attachSocketServer(server, gameManager);
 
 // Periodic cleanup of abandoned games so memory doesn't grow unbounded.
-const reapInterval = setInterval(() => gameManager.reap(), 15 * 60 * 1000);
-reapInterval.unref();
+const cleanInterval = setInterval(() => gameManager.clean(), 15 * 60 * 1000);
+cleanInterval.unref();
 
 server.listen(PORT, () => {
   console.log(`Game server listening on :${PORT}`);
@@ -130,7 +130,7 @@ server.listen(PORT, () => {
 // --- Graceful shutdown --------------------------------------------------------------
 function shutdown(signal) {
   console.log(`${signal} received, shutting down...`);
-  clearInterval(reapInterval);
+  clearInterval(cleanInterval);
   server.close(() => {
     console.log("HTTP server closed.");
     process.exit(0);

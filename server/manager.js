@@ -136,7 +136,7 @@ class GameManager {
   }
 
   /** Removes games that have had no activity for GAME_TTL_MS. Call on an interval. */
-  reap() {
+  clean() {
     const now = Date.now();
     for (const [key, game] of this.games) {
       const stillConnected = game.seats.player1 != null || game.seats.player2 != null;
