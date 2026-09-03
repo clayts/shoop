@@ -18,6 +18,4 @@ node server.js
 ```
 
 ## To Do
-- Make spectators get win noise rather than lose noise
-- Add way to join as spectator specifically even if other players haven't joined yet?
-- Fix for WhatsApp browser?
+- New joining logic - get rid of cookies and get rid of spectators. The first two players to grab a socket can play. Further players get a 'game full' error page. If a player is disconnected anyone may connect and take over the seat.
