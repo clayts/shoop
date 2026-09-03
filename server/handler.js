@@ -35,7 +35,7 @@ function attachSocketServer(server, gameManager) {
     // (see client/game.js) rather than the URL path — a single default
     // namespace keeps things simple and avoids accumulating one Socket.IO
     // namespace per game for the lifetime of the process.
-    const { gameType, gameId } = socket.handshake.query;
+    const { gameType, gameId, preferredRole } = socket.handshake.query;
 
     if (!gameManager.constructor.isValidType(gameType) || !gameManager.constructor.isValidId(gameId)) {
       safeSend(socket, "error", { reason: "invalid game type or id" });
@@ -55,7 +55,7 @@ function attachSocketServer(server, gameManager) {
     // seat first gets it, whether that's a brand-new visitor or someone
     // reconnecting after a disconnect freed one up. Once both seats are
     // held, everyone else is turned away.
-    const role = game.assignSeat(socket);
+    const role = game.assignSeat(socket, preferredRole);
     if (!role) {
       safeSend(socket, "full");
       return socket.disconnect(true);

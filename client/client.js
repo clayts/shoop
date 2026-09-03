@@ -69,8 +69,15 @@ const [, gameType, gameId] = location.pathname.split("/").filter(Boolean);
 // gameType/gameId travel in the handshake query rather than the socket URL
 // path, so every game shares one connection/namespace instead of the server
 // accumulating one per game for its whole lifetime.
+//
+// preferredRole starts empty (any open seat will do) and gets filled in
+// once the server tells us which seat we hold (see the "init" handler
+// below). Socket.IO re-reads this object on every reconnect attempt, so
+// mutating it in place is enough to make a reconnect ask for the same seat
+// back instead of racing for whichever one happens to be open first.
+const query = { gameType, gameId, preferredRole: "" };
 const socket = io({
-	query: { gameType, gameId },
+	query,
 	// transports: ["websocket"],
 });
 
@@ -78,6 +85,10 @@ socket.onAnyOutgoing((event, ...args) => console.log(`sent: ${event}`, ...args))
 socket.onAny((event, ...args) => console.log(`received: ${event}`, ...args));
 
 socket.on("init", (message) => {
+  // Local games only ever have one seat, so there's nothing to preserve
+  // across a reconnect — leave preferredRole empty.
+  if (!message.local) query.preferredRole = message.role;
+
   board.setGameMode(message.local, message.role);
 
   const { rows, columns } = message.state.dimensions;

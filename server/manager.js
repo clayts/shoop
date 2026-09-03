@@ -34,18 +34,44 @@ class Game {
   }
 
   /**
-   * Gives `ws` the first open seat and returns its role ("player1" /
-   * "player2"), or null if the game is already full. Anyone with the link
-   * can claim a seat that's open — whether because nobody's taken it yet, or
-   * because whoever held it disconnected.
+   * Gives `ws` a seat and returns its role ("player1" / "player2"), or null
+   * if no matching seat is available. Anyone with the link can claim a seat
+   * that's open — whether because nobody's taken it yet, or because whoever
+   * held it disconnected.
+   *
+   * `preferredRole`, if given, is a client asking for the seat it already
+   * held (see client/client.js) — that's the *only* seat it will accept.
+   * Falling back to the other seat would seat it as the opponent it was
+   * just playing against, so a taken preferred seat means null, not a
+   * consolation seat. Only a connection with no preference at all (a
+   * first-ever visit to this game) takes whichever seat is open. Untrusted
+   * input: only the two literal seat names are ever accepted.
    */
-  assignSeat(ws) {
+  assignSeat(ws, preferredRole) {
+    if (this.local) {
+      if (this.seats.player1 == null) {
+        this.seats.player1 = ws;
+        this.touch();
+        return "player1";
+      }
+      return null;
+    }
+
+    if (preferredRole === "player1" || preferredRole === "player2") {
+      if (this.seats[preferredRole] == null) {
+        this.seats[preferredRole] = ws;
+        this.touch();
+        return preferredRole;
+      }
+      return null;
+    }
+
     if (this.seats.player1 == null) {
       this.seats.player1 = ws;
       this.touch();
       return "player1";
     }
-    if (!this.local && this.seats.player2 == null) {
+    if (this.seats.player2 == null) {
       this.seats.player2 = ws;
       this.touch();
       return "player2";

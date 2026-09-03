@@ -20,4 +20,3 @@ node server.js
 ## To Do
 - draw when game is full
 - allow draws when both players get lines
-- warn user when reconnecting
