@@ -142,13 +142,6 @@ export class Board {
 
     this.presenceElements.player2.style.setProperty(CSS_VARIABLES.presenceDotScale, 1);
     this.presenceElements.player2.innerHTML = isPlayer2Connected ? ICONS.person : ICONS.spinner;
-
-    // If we're mid local-reconnect, keep showing our own spinner regardless
-    // of what the server last reported (it doesn't know we've dropped yet).
-    if (this.reconnecting && this.role) {
-      this.presenceElements[this.role].style.setProperty(CSS_VARIABLES.presenceDotScale, 1);
-      this.presenceElements[this.role].innerHTML = ICONS.spinner;
-    }
   }
 
   // Updates connection/active state and the presence dots together.
@@ -159,18 +152,23 @@ export class Board {
   }
 
   // Called when this client's own socket drops/reconnects (as opposed to the
-  // opponent's, which comes from the server via applyPresence). Forces our
-  // own presence dot to the spinner and shows a "Reconnecting..." label in
-  // the bottom row until the connection is restored.
+  // opponent's, which comes from the server via applyPresence). Forces both
+  // presence dots to the spinner until the connection is restored, since we
+  // lose visibility into the opponent's status too while we're disconnected.
   setReconnecting(reconnecting) {
     this.reconnecting = reconnecting;
 
-    if (reconnecting && this.role) {
-      this.presenceElements[this.role].style.setProperty(CSS_VARIABLES.presenceDotScale, 1);
-      this.presenceElements[this.role].innerHTML = ICONS.spinner;
-    } else if (!reconnecting && this.lastPresence) {
+    if (reconnecting) {
+      // We have no fresh word on the opponent's status either during this
+      // window, so showing their last-known "connected" dot would be
+      // misleading — spin both instead.
+      this.presenceElements.player1.style.setProperty(CSS_VARIABLES.presenceDotScale, 1);
+      this.presenceElements.player1.innerHTML = ICONS.spinner;
+      this.presenceElements.player2.style.setProperty(CSS_VARIABLES.presenceDotScale, 1);
+      this.presenceElements.player2.innerHTML = ICONS.spinner;
+    } else if (this.lastPresence) {
       // Restore whatever the server last told us, now that we're not
-      // forcing our own dot to the spinner anymore.
+      // forcing both dots to the spinner anymore.
       this.updatePresence(this.lastPresence);
     }
   }
