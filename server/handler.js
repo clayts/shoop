@@ -26,8 +26,8 @@ function attachSocketServer(server, gameManager) {
 	const io = new Server(server, {
 		// transports: ['websocket'],
 		maxHttpBufferSize: MAX_MESSAGE_BYTES,
-		pingInterval: 10000,
-    pingTimeout: 5000,
+		pingInterval: 5000,
+    pingTimeout: 4000,
   });
 
   io.on("connection", (socket) => {
