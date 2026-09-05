@@ -166,3 +166,15 @@ body.resizing * {
 .disc.player2 {
     background: var(--player2-color);
 }
+
+.spinner-icon {
+    animation: spin 1s linear infinite;
+    transform-box: fill-box;
+    transform-origin: center;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
