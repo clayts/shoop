@@ -21,4 +21,4 @@ node server.js
 - draw when game is full (test)
 - allow draws when both players get lines?
 - handle preview covering up reconnect display (test)
-- when placing a piece, place it before waiting for the server to acknowledge receipt
+- when placing a piece, place it before waiting for the server to acknowledge receipt?
