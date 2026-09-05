@@ -98,8 +98,8 @@ socket.on("init", (message) => {
   board.applyTurn(message.state.turn);
   board.applyPresence(message.presence);
 
-  if (message.state.line) {
-    board.highlightLine(message.state.line);
+  if (message.state.result) {
+    if (message.state.result.line) board.highlightLine(message.state.result.line);
     board.setGameOver(true);
   }
 });
@@ -117,20 +117,25 @@ socket.on("move", (message) => {
   board.playDisc(message.payload.column, message.role);
   sound.play(moveSound(message.payload.column, board.scaleDurationMs / 1000, discsInColumn));
 
-  if (message.line) {
+  if (message.result) {
     board.setGameOver(true);
 
-    // playDisc's animation is two phases — horizontal slide, then vertical
-    // drop — each scaleDurationMs long, so the disc has fully landed at 2x.
-    // That's when the line highlight and win/lose arpeggio (following on
-    // from the move sound above) play.
-    window.setTimeout(() => {
-      board.highlightLine(message.line);
+    if (message.result.line) {
+      // playDisc's animation is two phases — horizontal slide, then vertical
+      // drop — each scaleDurationMs long, so the disc has fully landed at 2x.
+      // That's when the line highlight and win/lose arpeggio (following on
+      // from the move sound above) play.
+      window.setTimeout(() => {
+        board.highlightLine(message.result.line);
 
-      // Local ("pass and play") games have one speaker for both sides
-      const hasWon = board.isLocal || message.role === board.role;
-      sound.play(hasWon ? SOUNDS.win : SOUNDS.lose);
-    }, board.scaleDurationMs * 2);
+        // The winner is whoever the result says won, which isn't
+        // necessarily whoever's move triggered it — a move can complete the
+        // opponent's line, not just the mover's own. Local ("pass and play")
+        // games have one speaker for both sides, so that always counts as a win.
+        const hasWon = board.isLocal || message.result.win === board.role;
+        sound.play(hasWon ? SOUNDS.win : SOUNDS.lose);
+      }, board.scaleDurationMs * 2);
+    }
   }
 
   board.applyTurn(OPPONENT_ROLE[message.role]);

@@ -19,8 +19,17 @@ function setup(startingPlayer) {
     startingPlayer: turn, // who went first this game, so a future restart can flip it
     board: Array.from({ length: BOARD_WIDTH }, () => []),
     dimensions: { columns: BOARD_WIDTH, rows: BOARD_HEIGHT },
-    line: null,
+    // null while the game is in progress. Once it's over: { win: "player1" |
+    // "player2", line: [...] } for a win, or { win: null, line: null } for a
+    // draw (board full, nobody completed a line).
+    result: null,
   };
+}
+
+// True once every column is stacked all the way to the top and nobody has
+// won — there's nowhere left to drop a disc, so the game is over as a draw.
+function isBoardFull(board) {
+  return board.every((column) => column.length >= BOARD_HEIGHT);
 }
 
 function checkLine(board, player) {
@@ -70,8 +79,8 @@ function checkLine(board, player) {
 // determines this at connection time (see server/manager.js's assignSeat)
 // and passes it straight through; there's no separate identity to look up.
 function play(game, role, payload) {
-  if (game.state.line != null) {
-    return { valid: false, reason: `game has been won` };
+  if (game.state.result != null) {
+    return { valid: false, reason: `game is already over` };
   }
 
   if (role !== "player1" && role !== "player2") {
@@ -108,11 +117,19 @@ function play(game, role, payload) {
 
   const opponent = activeRole === "player1" ? "player2" : "player1";
 
-  // The opponent gets priority: if they already have a winning line on the
-  // board, that takes precedence over any line the mover just formed.
-  game.state.line = checkLine(game.state.board, opponent) || checkLine(game.state.board, activeRole);
+  // The opponent gets priority: if this move causes the opponent's line to
+  // complete (their line, not the mover's own), that takes precedence over
+  // any line the mover just formed for themselves. Either is possible here,
+  // since dropping a disc shifts every disc already stacked above it.
+  const opponentLine = checkLine(game.state.board, opponent);
+  const moverLine = opponentLine ? null : checkLine(game.state.board, activeRole);
+  const winningLine = opponentLine || moverLine;
 
-  if (!game.state.line) {
+  if (winningLine) {
+    game.state.result = { win: opponentLine ? opponent : activeRole, line: winningLine };
+  } else if (isBoardFull(game.state.board)) {
+    game.state.result = { win: null, line: null };
+  } else {
     game.state.turn = opponent;
   }
 

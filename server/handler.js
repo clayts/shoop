@@ -104,7 +104,7 @@ function attachSocketServer(server, gameManager) {
       broadcast(game, "move", {
         role: result.role, // who actually moved (may differ from the connection's role in local games)
         payload: result.broadcastPayload !== undefined ? result.broadcastPayload : payload,
-        line: game.state.line,
+        result: game.state.result,
         time: Date.now(),
       });
     });
@@ -112,7 +112,7 @@ function attachSocketServer(server, gameManager) {
     socket.on("restart", () => {
       if (rateLimited()) return;
 
-      if (game.state.line == null) {
+      if (game.state.result == null) {
         return safeSend(socket, "error", { reason: "game is not over yet" });
       }
       const nextStarter = game.state.startingPlayer === "player1" ? "player2" : "player1";

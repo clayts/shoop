@@ -165,10 +165,6 @@ export class Board {
   setReconnecting(reconnecting) {
     this.reconnecting = reconnecting;
 
-    if (this.reconnectingLabel) {
-      this.reconnectingLabel.style.display = reconnecting ? "inline-flex" : "none";
-    }
-
     if (reconnecting && this.role) {
       this.presenceElements[this.role].style.setProperty(CSS_VARIABLES.presenceDotScale, 1);
       this.presenceElements[this.role].innerHTML = ICONS.spinner;
@@ -244,12 +240,6 @@ export class Board {
     });
 
     bottomRow.appendChild(this.restartButton);
-
-    this.reconnectingLabel = document.createElement("span");
-    this.reconnectingLabel.className = "reconnecting-label";
-    this.reconnectingLabel.textContent = "Reconnecting...";
-    this.reconnectingLabel.style.display = this.reconnecting ? "inline-flex" : "none";
-    bottomRow.appendChild(this.reconnectingLabel);
 
     fragment.appendChild(bottomRow);
 
