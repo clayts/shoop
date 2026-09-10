@@ -1,49 +1,6 @@
-/* Self-hosted Courier Prime (OFL-licensed) — see fonts/LICENSE.
-   Regular + bold + italic match the weights/styles actually used below. */
-@font-face {
-    font-family: 'Courier Prime';
-    font-style: normal;
-    font-weight: 400;
-    font-display: swap;
-    src: url('fonts/CourierPrime-Regular.woff2') format('woff2');
-}
-
-@font-face {
-    font-family: 'Courier Prime';
-    font-style: normal;
-    font-weight: 700;
-    font-display: swap;
-    src: url('fonts/CourierPrime-Bold.woff2') format('woff2');
-}
-
-@font-face {
-    font-family: 'Courier Prime';
-    font-style: italic;
-    font-weight: 400;
-    font-display: swap;
-    src: url('fonts/CourierPrime-Italic.woff2') format('woff2');
-}
-
-:root {
-    --bg-color: #808e6c;
-    --text-color: #ffffff;
-    --muted-color: rgba(255, 255, 255, 0.75);
-    --border-color: rgba(255, 255, 255, 0.2);
-    --hover-bg: rgba(255, 255, 255, 0.2);
-    --font-stack: 'Courier Prime', Courier, 'Courier New', monospace;
-}
-
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-}
-
 body {
-    background-color: var(--bg-color);
-    color: var(--text-color);
-    font-family: var(--font-stack);
     min-height: 100vh;
+    min-height: 100dvh;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -79,7 +36,7 @@ h1 {
     justify-content: center;
     align-items: center;
     text-align: center;
-    height: 110px; /* Fixed uniform height */
+    height: 110px; /* uniform, whatever the description's length */
     gap: 0.5rem;
     padding: 1.25rem;
     text-decoration: none;
@@ -87,11 +44,14 @@ h1 {
     border: 1px solid var(--border-color);
     border-radius: 4px;
     background-color: transparent;
-    transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+    transition:
+        background-color 0.2s ease,
+        border-color 0.2s ease,
+        transform 0.15s ease;
 }
 
 .menu-item:hover {
-    background-color: var(--hover-bg);
+    background-color: rgba(255, 255, 255, 0.2);
     border-color: rgba(255, 255, 255, 0.4);
     transform: translateY(-1px);
 }
@@ -104,6 +64,6 @@ h1 {
 
 .description {
     font-size: 0.9rem;
-    color: var(--muted-color);
+    color: var(--muted-text-color);
     line-height: 1.4;
 }

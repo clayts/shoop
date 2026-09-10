@@ -1,22 +1,21 @@
 {
   "name": "game-server",
   "version": "1.0.0",
-  "description": "Production-grade game lobby server: /new creates a game, first two viewers become player1/player2, others spectate, moves are validated server-side and broadcast over WebSocket.",
+  "description": "Shoop: a lobby server where /game/<type> mints a game, the first two sockets take the seats, and every move is validated server-side and broadcast over WebSocket.",
   "type": "module",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=22"
   },
   "dependencies": {
-    "cookie": "^2.0.1",
     "express": "^4.19.2",
     "express-rate-limit": "^7.4.0",
     "helmet": "^7.1.0",
-    "nanoid": "^3.3.7",
     "socket.io": "^4.8.3"
   }
 }

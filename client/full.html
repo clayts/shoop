@@ -1,47 +1,18 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 	<head>
 		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
 		<title>Shoop — Game full</title>
 		<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-		<link rel="stylesheet" href="/game.css">
-		<style>
-			html, body {
-				overflow: auto;
-			}
-
-			body {
-				display: flex;
-				align-items: center;
-				justify-content: center;
-				font-family: 'Courier Prime', Courier, 'Courier New', monospace;
-				color: var(--ui-text-color);
-				text-align: center;
-				padding: 2rem;
-			}
-
-			.full-message h1 {
-				color: white;
-				font-size: 2rem;
-				letter-spacing: 0.1em;
-				text-transform: uppercase;
-				margin-bottom: 1rem;
-			}
-
-			.full-message p {
-				margin-bottom: 1.5rem;
-			}
-
-			.full-message a {
-				color: white;
-			}
-		</style>
+		<link rel="stylesheet" href="/base.css">
+		<link rel="stylesheet" href="/full.css">
 	</head>
 	<body>
-		<div class="full-message">
+		<main class="full-message">
 			<h1>Game full</h1>
-			<p>This game already has two players.</p>
+			<p>This game already has two players. Reload the page to try again — if one of them leaves, their seat opens up.</p>
 			<a href="/">Back home</a>
-		</div>
+		</main>
 	</body>
 </html>

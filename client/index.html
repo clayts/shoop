@@ -1,39 +1,35 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shoop</title>
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="index.css">
-</head>
-<body>
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<title>Shoop</title>
+		<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+		<link rel="stylesheet" href="/base.css">
+		<link rel="stylesheet" href="/index.css">
+	</head>
+	<body>
+		<main class="container">
+			<header>
+				<h1>Shoop</h1>
+			</header>
 
-    <main class="container">
-        <header>
-            <h1>Shoop</h1>
-        </header>
+			<nav class="menu">
+				<a href="/game/local" class="menu-item">
+					<span class="title">Local Game</span>
+					<span class="description">Play a game with a friend locally by taking turns sharing the same screen.</span>
+				</a>
 
-        <nav class="menu">
-            <!-- Local Game Option -->
-            <a href="./game/local" class="menu-item">
-                <span class="title">Local Game</span>
-                <span class="description">Play a game with a friend locally by taking turns sharing the same screen.</span>
-            </a>
+				<a href="/game/private" class="menu-item">
+					<span class="title">Private Game</span>
+					<span class="description">Play a game with a friend remotely by sending an invite link.</span>
+				</a>
 
-            <!-- Private Game Option -->
-            <a href="./game/private" class="menu-item">
-                <span class="title">Private Game</span>
-                <span class="description">Play a game with a friend remotely by sending an invite link.</span>
-            </a>
-
-            <!-- Public Game Option -->
-            <a href="./game/public" class="menu-item">
-                <span class="title">Public Game</span>
-                <span class="description">Play a game with a random stranger online.</span>
-            </a>
-        </nav>
-    </main>
-
-</body>
+				<a href="/game/public" class="menu-item">
+					<span class="title">Public Game</span>
+					<span class="description">Play a game with a random stranger online.</span>
+				</a>
+			</nav>
+		</main>
+	</body>
 </html>

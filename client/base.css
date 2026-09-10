@@ -1,0 +1,56 @@
+/* Tokens and type shared by every page. Loaded first, so the page-specific
+   stylesheet next to it can lean on these and only describe what differs.
+
+   Self-hosted Courier Prime (OFL-licensed) — see fonts/LICENSE. Regular, bold
+   and italic are the weights and styles actually used. */
+
+@font-face {
+    font-family: 'Courier Prime';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('fonts/CourierPrime-Regular.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Courier Prime';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url('fonts/CourierPrime-Bold.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Courier Prime';
+    font-style: italic;
+    font-weight: 400;
+    font-display: swap;
+    src: url('fonts/CourierPrime-Italic.woff2') format('woff2');
+}
+
+:root {
+    --background-color: #808e6c;
+    --text-color: #ffffff;
+    --muted-text-color: rgba(255, 255, 255, 0.75);
+    --border-color: rgba(255, 255, 255, 0.2);
+    --font-stack: 'Courier Prime', Courier, 'Courier New', monospace;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background-color: var(--background-color);
+    color: var(--text-color);
+    font-family: var(--font-stack);
+}
+
+/* The game's controls set outline: none for the mouse; this puts a focus ring
+   back for anyone arriving by keyboard. */
+:focus-visible {
+    outline: 2px solid var(--text-color);
+    outline-offset: 2px;
+}

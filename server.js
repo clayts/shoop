@@ -1,18 +1,18 @@
 "use strict";
 
-import path from "path";
-import { fileURLToPath } from "url";
-import http from "http";
+import http from "node:http";
+import path from "node:path";
+import { randomInt } from "node:crypto";
+import { fileURLToPath } from "node:url";
+
 import express from "express";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-import { customAlphabet } from "nanoid";
 
 import { GameManager } from "./server/manager.js";
 import { attachSocketServer } from "./server/handler.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const CLIENT_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "client");
 
 const PORT = process.env.PORT || 3000;
 const GAME_ID_ALPHABET = "QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzxcvbnm1234567890";
@@ -20,34 +20,43 @@ const GAME_ID_LENGTH = 16;
 const RANDOM_ID_GAME_TYPES = ["private", "local"]; // "public" gets its own route below (automatch)
 const NEW_GAME_RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const NEW_GAME_RATE_LIMIT_MAX = 20; // per window, per IP
+const CLEAN_INTERVAL_MS = 15 * 60 * 1000;
+const SHUTDOWN_GRACE_MS = 10 * 1000;
 
-const generateGameId = customAlphabet(GAME_ID_ALPHABET, GAME_ID_LENGTH);
+// ~95 bits from a CSPRNG, which is plenty to make a private game's URL
+// unguessable. randomInt() rejection-samples, so no character is favoured.
+function generateGameId() {
+  return Array.from({ length: GAME_ID_LENGTH }, () => GAME_ID_ALPHABET[randomInt(GAME_ID_ALPHABET.length)]).join("");
+}
 
 const app = express();
 const gameManager = new GameManager();
 
 // --- Security & platform basics ---------------------------------------------------
-app.set("trust proxy", 1); // needed so req.secure / X-Forwarded-Proto work behind a reverse proxy
+app.set("trust proxy", 1); // so req.secure / X-Forwarded-Proto work behind a reverse proxy
+app.disable("x-powered-by");
+
 app.use(
   helmet({
     contentSecurityPolicy: {
       useDefaults: true, // keep helmet's other sane defaults (object-src 'none', base-uri 'self', etc.)
       directives: {
-        // Everything is self-hosted now — the Socket.IO client bundle is
-        // served by our own server (see server/handler.js) and Courier
-        // Prime is bundled under client/fonts — so plain 'self' covers it.
+        // Everything is self-hosted: the Socket.IO client bundle is served by
+        // this server (see server/handler.js) and Courier Prime is bundled
+        // under client/fonts, so plain 'self' covers it. Note that this leaves
+        // no room for inline <style> or <script> — anything a page needs
+        // belongs in a file next to it.
         "script-src": ["'self'"],
         "style-src": ["'self'"],
         "font-src": ["'self'"],
-        // Socket.IO connects back to the same origin (both the polling
-        // fallback and the ws/wss upgrade) — nothing cross-origin to allow.
+        // Socket.IO connects back to the same origin, both for the polling
+        // fallback and the ws/wss upgrade — nothing cross-origin to allow.
         "connect-src": ["'self'"],
         "img-src": ["'self'", "data:"],
       },
     },
   }),
 );
-app.disable("x-powered-by");
 
 // --- Rate limiting for game creation (cheap to abuse otherwise) ------------------
 const newGameLimiter = rateLimit({
@@ -58,69 +67,78 @@ const newGameLimiter = rateLimit({
 });
 
 // --- Routes ------------------------------------------------------------------------
-// These all end in a redirect to /game/:type/:id; role assignment and
-// gameplay always happen over that page's Socket.IO connection (see
-// server/handler.js), never here. Games are no longer explicitly
-// pre-created: any well-formed type/id is valid and is created lazily the
-// first time it's requested, so users can also type their own id directly
-// into /game/:type/:id.
+// The entry points below all end in a redirect to /game/:type/:id. Games
+// themselves are created lazily by the first socket to connect (see
+// server/handler.js), so any well-formed type/id is playable — including one a
+// visitor typed in by hand — and a page load that never opens a socket costs
+// nothing.
 
 // Private & local: mint a fresh random id and send the visitor straight to it.
-RANDOM_ID_GAME_TYPES.forEach((type) => {
+for (const type of RANDOM_ID_GAME_TYPES) {
   app.get(`/game/${type}`, newGameLimiter, (req, res) => {
     res.redirect(302, `/game/${type}/${generateGameId()}`);
   });
-});
+}
 
 // Public: join the first open game in the automatch queue, or start a new one.
 app.get("/game/public", newGameLimiter, (req, res) => {
-  const id = gameManager.joinOrCreateAutomatch(generateGameId);
-  res.redirect(302, `/game/public/${id}`);
+  res.redirect(302, `/game/public/${gameManager.joinOrCreateAutomatch(generateGameId)}`);
 });
 
-// Serves the page; seat assignment itself happens over the Socket.IO
-// connection the page opens, because that's the point at which we know the
-// visitor is actually here to participate, and it's naturally serialized (no
-// race between two concurrent HTTP requests). There's no identity behind a
-// seat — whoever's socket claims it first (including a returning player
-// after someone else's dropped) gets to play; a third visitor sees this
-// "full" page instead. (A socket connecting mid-race, after this check but
-// before it lands a seat, gets the same outcome via the socket's own
-// "full" message — see server/handler.js.)
-app.get("/game/:type/:id", (req, res) => {
+// Serves the page. Seat assignment happens over the Socket.IO connection that
+// page opens, because that's the point at which we know the visitor is
+// actually here to play, and it's naturally serialized (no race between two
+// concurrent HTTP requests). The check here is a courtesy: it shows a full
+// game's third visitor a real page instead of a spinner. A socket that arrives
+// mid-race, after this check but before it lands a seat, gets the same outcome
+// from its own "full" message.
+app.get("/game/:type/:id", (req, res, next) => {
   const { type, id } = req.params;
-  if (!GameManager.isValidType(type)) {
-    return res.status(404).send("Game not found: invalid type");
-  }
-  if (!GameManager.isValidId(id)) {
-    return res.status(404).send("Game not found: invalid id");
-  }
-  const game = gameManager.getOrCreate(type, id);
-  if (game.isFull()) {
-    return res.status(409).sendFile(path.join(__dirname, "client", "full.html"));
-  }
-  res.sendFile(path.join(__dirname, "client", "game.html"));
+  if (!GameManager.isValidType(type) || !GameManager.isValidId(id)) return next();
+
+  const game = gameManager.get(type, id);
+  if (game?.isFull()) return res.status(409).sendFile(path.join(CLIENT_DIR, "full.html"));
+
+  res.sendFile(path.join(CLIENT_DIR, "game.html"));
 });
 
-// Simple read-only status endpoint, handy for debugging / smoke tests.
+// Read-only status, handy for debugging and smoke tests.
 app.get("/game/:type/:id/status", (req, res) => {
   const game = gameManager.get(req.params.type, req.params.id);
   if (!game) return res.status(404).json({ error: "not found" });
-  res.json({ id: game.id, type: game.type, local: game.local, presence: game.presenceSnapshot(), state: game.state });
+
+  res.json({
+    id: game.id,
+    type: game.type,
+    local: game.local,
+    presence: game.presenceSnapshot(),
+    state: game.state,
+  });
 });
 
 app.get("/health", (req, res) => {
   res.json({ ok: true, games: gameManager.size(), uptime: process.uptime() });
 });
 
-app.use(express.static(path.join(__dirname, "client")));
+app.use(express.static(CLIENT_DIR));
+
+app.use((req, res) => {
+  res.status(404).type("text/plain").send("Not found");
+});
+
+// Four arguments, so express treats this as the error handler rather than more
+// middleware. Replaces the built-in one, which would send the stack trace.
+app.use((error, req, res, next) => {
+  console.error(`${req.method} ${req.originalUrl} failed:`, error);
+  res.status(500).type("text/plain").send("Something went wrong");
+});
 
 // --- HTTP + Socket.IO server -------------------------------------------------------
 const server = http.createServer(app);
-attachSocketServer(server, gameManager);
+const io = attachSocketServer(server, gameManager);
 
-// Periodic cleanup of abandoned games so memory doesn't grow unbounded.
-const cleanInterval = setInterval(() => gameManager.clean(), 15 * 60 * 1000);
+// Periodic cleanup of abandoned games, so memory doesn't grow unbounded.
+const cleanInterval = setInterval(() => gameManager.clean(), CLEAN_INTERVAL_MS);
 cleanInterval.unref();
 
 server.listen(PORT, () => {
@@ -128,16 +146,27 @@ server.listen(PORT, () => {
 });
 
 // --- Graceful shutdown --------------------------------------------------------------
+let shuttingDown = false;
+
 function shutdown(signal) {
+  if (shuttingDown) return; // a second Ctrl-C shouldn't restart the clock
+  shuttingDown = true;
+
   console.log(`${signal} received, shutting down...`);
   clearInterval(cleanInterval);
-  server.close(() => {
-    console.log("HTTP server closed.");
+
+  // io.close() disconnects every socket and closes the HTTP server with them.
+  // Without it the open WebSockets would keep the process alive until the
+  // force-exit below, since server.close() only waits for connections to drain.
+  io.close(() => {
+    console.log("Server closed.");
     process.exit(0);
   });
-  setTimeout(() => process.exit(1), 10000).unref(); // force-exit if connections don't drain in time
+
+  setTimeout(() => process.exit(1), SHUTDOWN_GRACE_MS).unref();
 }
+
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
-export { app, server, gameManager };
+export { app, server, io, gameManager };

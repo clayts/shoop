@@ -5,29 +5,45 @@
     --scale-duration: 0.25s; /* shrink/grow animation duration */
     --wave-step: 40ms; /* stagger between adjacent rows */
 
-    --background-color: #808e6c;
     --cell-color: white;
     --player1-color: red;
     --player2-color: blue;
     --highlighted-line-color: white;
-    --ui-text-color: rgba(255, 255, 255, 0.75);
 }
 
 html,
 body {
-    margin: 0;
     height: 100%;
     overflow: hidden;
-    background: var(--background-color);
 }
 
-/* Toggled on <body> for the duration of a window resize so every layout
-   change (cells, discs, presence dots, the highlighted line) applies
-   instantly instead of animating. */
+/* Toggled on <body> for the duration of a window resize so every layout change
+   (cells, discs, presence dots, the highlighted line) applies instantly
+   instead of animating. */
 body.resizing,
 body.resizing * {
     transition: none !important;
 }
+
+#grid-wrapper {
+    width: 100%;
+    height: 100vh;
+    height: 100dvh; /* so mobile browser chrome sliding away doesn't crop the board */
+    padding: var(--padding);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#grid {
+    display: grid;
+    gap: var(--gap);
+    position: relative;
+    z-index: 0;
+}
+
+/* --- The invisible row above the board: presence on the left, controls on the
+       right, inset by half a cell so it lines up with the outer columns. ---- */
 
 .top-row {
     display: flex;
@@ -72,61 +88,31 @@ body.resizing * {
     color: var(--player2-color);
 }
 
+/* --- The invisible row below the board: restart, and where the preview disc
+       waits to be shot up into the grid. ----------------------------------- */
+
 .bottom-row {
     display: flex;
     justify-content: center;
     align-items: center;
 }
 
-.mute-toggle,
-.link-toggle,
-.restart-toggle {
+.control {
     background: transparent;
     border: none;
-    padding: 0;
-    margin: 0;
     cursor: pointer;
-    outline: none;
+    outline: none; /* base.css puts a ring back for :focus-visible */
     display: inline-flex;
-    color: var(--ui-text-color);
+    color: var(--muted-text-color);
     font-size: var(--cell-size);
     line-height: 1;
 }
 
-.mute-toggle svg,
-.link-toggle svg,
-.restart-toggle svg {
-    display: block; /* removes baseline inline-text space */
+.control svg {
+    display: block; /* removes the baseline inline-text gap */
 }
 
-#grid-wrapper {
-    box-sizing: border-box;
-    width: 100vw;
-    height: 100vh;
-    padding: var(--padding);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-#grid {
-    display: grid;
-    gap: var(--gap);
-    position: relative;
-    z-index: 0;
-}
-
-.highlighted-line {
-    position: absolute;
-    top: 0;
-    left: 0;
-    height: calc(var(--cell-size) * (1 - var(--disc-scale)) / 2);
-    background: var(--highlighted-line-color);
-    transform-origin: 0 50%;
-    transform: translate(var(--x), var(--y)) rotate(var(--angle));
-    z-index: -1;
-    pointer-events: none;
-}
+/* --- The board itself. ----------------------------------------------------- */
 
 .cell {
     background: var(--cell-color);
@@ -148,9 +134,10 @@ body.resizing * {
     width: calc(var(--cell-size) * var(--scale));
     height: calc(var(--cell-size) * var(--scale));
     transform: translate(
-        calc(var(--col) * (var(--cell-size) + var(--gap)) + var(--cell-size) * var(--offset)),
-        calc(var(--row) * (var(--cell-size) + var(--gap)) + var(--cell-size) * var(--offset))
-    ) scale(var(--preview-scale, 1));
+            calc(var(--col) * (var(--cell-size) + var(--gap)) + var(--cell-size) * var(--offset)),
+            calc(var(--row) * (var(--cell-size) + var(--gap)) + var(--cell-size) * var(--offset))
+        )
+        scale(var(--preview-scale, 1));
 
     position: absolute;
     pointer-events: none;
@@ -163,8 +150,22 @@ body.resizing * {
 .disc.player1 {
     background: var(--player1-color);
 }
+
 .disc.player2 {
     background: var(--player2-color);
+}
+
+/* Drawn behind the discs, between the centres of the winning line's end cells. */
+.highlighted-line {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: calc(var(--cell-size) * (1 - var(--disc-scale)) / 2);
+    background: var(--highlighted-line-color);
+    transform-origin: 0 50%;
+    transform: translate(var(--x), var(--y)) rotate(var(--angle));
+    z-index: -1;
+    pointer-events: none;
 }
 
 .spinner-icon {

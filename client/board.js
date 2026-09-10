@@ -24,16 +24,13 @@ export const ICONS = {
   // Rotation is driven by the .spinner-icon CSS class (see game.css), not an
   // <animateTransform>: SMIL's scripting API (beginElement) and its implicit
   // auto-start on insertion are inconsistent enough across browsers — and
-  // fragile enough when two animated SVGs are inserted back-to-back — that
-  // a plain CSS keyframe animation is the reliable choice here.
+  // fragile enough when two animated SVGs are inserted back-to-back — that a
+  // plain CSS keyframe animation is the reliable choice here.
   spinner: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" fill="currentColor" class="spinner-icon"><!--!Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2026 Fonticons, Inc.--><path d="M272 112C272 85.5 293.5 64 320 64C346.5 64 368 85.5 368 112C368 138.5 346.5 160 320 160C293.5 160 272 138.5 272 112zM272 528C272 501.5 293.5 480 320 480C346.5 480 368 501.5 368 528C368 554.5 346.5 576 320 576C293.5 576 272 554.5 272 528zM112 272C138.5 272 160 293.5 160 320C160 346.5 138.5 368 112 368C85.5 368 64 346.5 64 320C64 293.5 85.5 272 112 272zM480 320C480 293.5 501.5 272 528 272C554.5 272 576 293.5 576 320C576 346.5 554.5 368 528 368C501.5 368 480 346.5 480 320zM139 433.1C157.8 414.3 188.1 414.3 206.9 433.1C225.7 451.9 225.7 482.2 206.9 501C188.1 519.8 157.8 519.8 139 501C120.2 482.2 120.2 451.9 139 433.1zM139 139C157.8 120.2 188.1 120.2 206.9 139C225.7 157.8 225.7 188.1 206.9 206.9C188.1 225.7 157.8 225.7 139 206.9C120.2 188.1 120.2 157.8 139 139zM501 433.1C519.8 451.9 519.8 482.2 501 501C482.2 519.8 451.9 519.8 433.1 501C414.3 482.2 414.3 451.9 433.1 433.1C451.9 414.3 482.2 414.3 501 433.1z"/></svg>`,
-
-
-  // <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="1em" height="1em" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="25" cy="25" r="20" stroke-width="4" stroke-opacity="0.25"/><path d="M25 5a20 20 0 0 1 20 20" stroke-width="4"><animateTransform attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur="0.8s" repeatCount="indefinite"/></path></svg>
 };
 
-// Reads a numeric CSS custom property from the document root, falling back
-// to `fallback` if it isn't set or isn't a number.
+// Reads a numeric CSS custom property off the document root, falling back to
+// `fallback` if it isn't set or isn't a number.
 function readRootCssNumber(propertyName, fallback) {
   const value = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(propertyName));
   return Number.isNaN(value) ? fallback : value;
@@ -41,12 +38,17 @@ function readRootCssNumber(propertyName, fallback) {
 
 // ============================================================================
 // Board: renders the grid, the toolbar rows, and the preview/placement discs.
-// Also tracks the small bits of game/session state (role, turn, local vs.
-// networked, spectating) needed to answer "is it my turn?" and "should this
-// connection's role follow the turn?".
+// Also tracks the handful of things needed to answer "is it my turn?" — role,
+// turn, whether both players are here, whether we're mid-reconnect.
+//
+// Coordinates: a column is a stack whose index 0 is its *bottom* cell, because
+// discs enter from below and push the rest up (see server/rules.js). The grid
+// itself has two extra invisible rows, one above for the toolbar and one below
+// where the preview disc waits, so a stack index of `row` sits at grid row
+// `rows - row` — that conversion lives in positionDisc(), and nowhere else.
 // ============================================================================
 export class Board {
-  constructor(container, { onColumnClick, onRestart, onConstructTopRow: onConstructTopRow }) {
+  constructor(container, { onColumnClick, onRestart, onConstructTopRow }) {
     this.container = container;
     this.wrapper = container.parentElement;
     this.onRestart = onRestart;
@@ -58,28 +60,32 @@ export class Board {
     this.scaleDurationMs = readRootCssNumber("--scale-duration", 0.1) * 1000;
     this.cellSize = 0;
 
+    this.rows = 0;
+    this.columns = 0;
+    this.stacks = null; // per column, bottom disc first; null until construct()
+
     this.role = null;
     this.currentTurn = null;
     this.active = false; // both players connected
+    this.reconnecting = false;
     this.gameOver = false;
     this.isLocal = false; // "pass and play": one connection moves for both colours
 
     this.container.addEventListener("click", (event) => {
-      // Which column (if any) the click landed in.
-      const bounds = this.container.getBoundingClientRect();
-      const column = Math.floor((event.clientX - bounds.left) / (this.cellSize + this.gap));
-      if (column >= 0 && column < this.columns) onColumnClick(column);
+      const column = this.#columnAt(event);
+      // Clicks that aren't playable are dropped rather than sent and rejected:
+      // the preview disc already says whose turn it is, so a rejection buzz
+      // here would just be noise.
+      if (column != null && this.canPlay()) onColumnClick(column);
     });
 
-    this.resizeSettleMs = 150; // how long to wait after the last resize event before resuming animations
+    this.resizeSettleMs = 150; // quiet period after the last resize event before animations resume
     this.resizeSettleTimer = null;
 
     this.handleResize = () => {
       document.body.classList.add("resizing");
       window.clearTimeout(this.resizeSettleTimer);
-      this.resizeSettleTimer = window.setTimeout(() => {
-        document.body.classList.remove("resizing");
-      }, this.resizeSettleMs);
+      this.resizeSettleTimer = window.setTimeout(() => document.body.classList.remove("resizing"), this.resizeSettleMs);
 
       this.layout();
     };
@@ -90,22 +96,39 @@ export class Board {
     return (this.columns - 1) / 2;
   }
 
+  /** Whether a click should be acted on: my turn, in a live game I'm connected to. */
+  canPlay() {
+    return this.active && !this.reconnecting && !this.gameOver && this.role != null && this.role === this.currentTurn;
+  }
+
+  /** The column a pointer event landed in, or null if it didn't land in one. */
+  #columnAt({ clientX, clientY }) {
+    if (!this.cellSize || !this.stacks) return null;
+
+    const bounds = this.container.getBoundingClientRect();
+    const pitch = this.cellSize + this.gap;
+    const column = Math.floor((clientX - bounds.left) / pitch);
+    const row = Math.floor((clientY - bounds.top) / pitch);
+
+    if (row < 1) return null; // the toolbar row: a stray click there isn't a move
+    return column >= 0 && column < this.columns ? column : null;
+  }
+
   setRole(role) {
     this.role = role;
   }
 
-  // Called once, from the server's initial message, to record whether this
-  // is a local ("pass and play") game, then sets the starting role.
+  // Called from the server's initial message to record whether this is a local
+  // ("pass and play") game, then set the starting role.
   setGameMode(local, role) {
     this.isLocal = !!local;
     this.setRole(role);
   }
 
-  // Sets whose turn it is and refreshes the preview. In local ("pass and
-  // play") games, role is kept glued to whichever side is currently up, so
-  // clicks/preview/colours always follow the active player instead of a
-  // fixed side; the preview is also recreated so its scale-in animation
-  // plays for each turn.
+  // Sets whose turn it is and refreshes the preview. In local games the role is
+  // kept glued to whichever side is up, so clicks, preview and colours follow
+  // the active player instead of a fixed side; the preview is also recreated
+  // there so its scale-in animation plays afresh each turn.
   applyTurn(turn) {
     if (this.isLocal) this.setRole(turn);
     this.setTurn(turn, { recreatePreview: this.isLocal });
@@ -123,63 +146,50 @@ export class Board {
     this.showPreview();
   }
 
-  // Enables/disables play (both players connected) and refreshes the preview.
-  setActive(active) {
-    this.active = active;
-    this.showPreview();
-  }
-
   // Marks the game as finished, hides the preview, and reveals the restart button.
   setGameOver(gameOver) {
     this.gameOver = gameOver;
     this.showPreview();
-    this.restartButton.style.display = gameOver ? "inline-flex" : "none";
+    if (this.restartButton) this.restartButton.style.display = gameOver ? "inline-flex" : "none";
   }
 
-  updatePresence(presence) {
-    const isPlayer1Connected = !!presence?.player1Connected;
-    const isPlayer2Connected = !!presence?.player2Connected;
-
-    // Player dots always stay visible: while waiting for a player to connect,
-    // show a spinner in place of their icon rather than hiding the dot.
-    this.presenceElements.player1.style.setProperty(CSS_VARIABLES.presenceDotScale, 1);
-    this.presenceElements.player1.innerHTML = isPlayer1Connected ? ICONS.person : ICONS.spinner;
-
-    this.presenceElements.player2.style.setProperty(CSS_VARIABLES.presenceDotScale, 1);
-    this.presenceElements.player2.innerHTML = isPlayer2Connected ? ICONS.person : ICONS.spinner;
-  }
-
-  // Updates connection/active state and the presence dots together.
+  // Records the server's view of who's connected, and updates everything that
+  // depends on it.
   applyPresence(presence) {
     this.lastPresence = presence;
-    this.setActive(!!(presence?.player1Connected && presence?.player2Connected));
-    this.updatePresence(presence);
+    this.active = !!(presence?.player1Connected && presence?.player2Connected);
+    this.#renderPresence();
+    this.showPreview();
   }
 
-  // Called when this client's own socket drops/reconnects (as opposed to the
-  // opponent's, which comes from the server via applyPresence). Forces both
-  // presence dots to the spinner until the connection is restored, since we
-  // lose visibility into the opponent's status too while we're disconnected.
+  // Called when this client's own socket drops or comes back, as opposed to the
+  // opponent's, which arrives from the server via applyPresence.
   setReconnecting(reconnecting) {
     this.reconnecting = reconnecting;
-
-    if (reconnecting) {
-      // We have no fresh word on the opponent's status either during this
-      // window, so showing their last-known "connected" dot would be
-      // misleading — spin both instead.
-      this.presenceElements.player1.style.setProperty(CSS_VARIABLES.presenceDotScale, 1);
-      this.presenceElements.player1.innerHTML = ICONS.spinner;
-      this.presenceElements.player2.style.setProperty(CSS_VARIABLES.presenceDotScale, 1);
-      this.presenceElements.player2.innerHTML = ICONS.spinner;
-    } else if (this.lastPresence) {
-      // Restore whatever the server last told us, now that we're not
-      // forcing both dots to the spinner anymore.
-      this.updatePresence(this.lastPresence);
-    }
+    this.#renderPresence();
+    this.showPreview();
   }
 
-  // Builds an empty rows x columns board, plus an invisible row above (toolbar)
-  // and below (restart control + hover preview). Row 0 is the bottom row.
+  // The dots stay visible throughout: a player who isn't here yet gets a
+  // spinner rather than an empty space. While *we're* disconnected we have no
+  // fresh word on the opponent either, so both spin — showing their last-known
+  // "connected" dot would be claiming more than we know.
+  #renderPresence() {
+    const presence = this.reconnecting ? null : this.lastPresence;
+    this.#setPresenceDot("player1", !!presence?.player1Connected);
+    this.#setPresenceDot("player2", !!presence?.player2Connected);
+  }
+
+  #setPresenceDot(role, connected) {
+    const dot = this.presenceElements?.[role];
+    if (!dot) return; // nothing built yet
+
+    dot.style.setProperty(CSS_VARIABLES.presenceDotScale, 1);
+    dot.innerHTML = connected ? ICONS.person : ICONS.spinner;
+  }
+
+  // Builds an empty rows x columns board, plus the invisible row above
+  // (toolbar) and below (restart control, and the preview disc's resting spot).
   construct(rows, columns) {
     this.rows = rows;
     this.columns = columns;
@@ -193,7 +203,7 @@ export class Board {
     topRow.className = "top-row";
     topRow.style.gridColumn = "1 / -1";
 
-    // Presence status (left side): dots for player1 and player2.
+    // Presence status on the left: a dot each for player1 and player2.
     const presenceStatus = document.createElement("div");
     presenceStatus.className = "presence-status";
     presenceStatus.innerHTML = `
@@ -206,21 +216,24 @@ export class Board {
       player2: presenceStatus.querySelector(".presence-player2"),
     };
 
-    // Right side (link/mute buttons): populated by the caller.
+    // The right-hand group (link, mute) is populated by the caller.
     const rightGroup = document.createElement("div");
     rightGroup.className = "top-row-right";
     topRow.appendChild(rightGroup);
     this.onConstructTopRow?.(rightGroup);
+
     fragment.appendChild(topRow);
 
-    // Cells, bottom row first so the entrance wave animates upward.
-    for (let rowIndex = 0; rowIndex < rows; rowIndex++) {
-      for (let columnIndex = 0; columnIndex < columns; columnIndex++) {
+    // Cells, top row of the grid first, but numbered from the bottom so the
+    // entrance wave rolls upward.
+    for (let gridRow = 0; gridRow < rows; gridRow++) {
+      for (let column = 0; column < columns; column++) {
+        const row = rows - 1 - gridRow;
         const cell = document.createElement("div");
         cell.className = "cell";
-        cell.dataset.column = columnIndex;
-        cell.dataset.row = rows - 1 - rowIndex;
-        cell.style.setProperty(CSS_VARIABLES.waveIndex, rows - 1 - rowIndex); // bottom row animates first
+        cell.dataset.column = column;
+        cell.dataset.row = row;
+        cell.style.setProperty(CSS_VARIABLES.waveIndex, row); // bottom row animates first
         cell.style.setProperty(CSS_VARIABLES.cellScale, 0);
         fragment.appendChild(cell);
       }
@@ -232,18 +245,18 @@ export class Board {
     bottomRow.style.gridColumn = "1 / -1";
 
     this.restartButton = document.createElement("button");
-    this.restartButton.className = "restart-toggle";
+    this.restartButton.type = "button";
+    this.restartButton.className = "control";
     this.restartButton.title = "Restart game";
+    this.restartButton.setAttribute("aria-label", "Restart game");
     this.restartButton.style.display = "none";
     this.restartButton.innerHTML = ICONS.restart;
-
     this.restartButton.addEventListener("click", (event) => {
       event.stopPropagation();
       this.onRestart?.();
     });
 
     bottomRow.appendChild(this.restartButton);
-
     fragment.appendChild(bottomRow);
 
     this.container.appendChild(fragment);
@@ -253,18 +266,17 @@ export class Board {
     this.highlightedLineCells = null;
 
     this.layout();
+    this.#renderPresence(); // the dots were just rebuilt from scratch
 
-    // Commit the scale-0 state, then flip to 1 so the transition (with each
-    // cell's --wave-index delay) actually plays as a bottom-to-top wave.
+    // Commit the scale-0 state, then flip to 1 so the transition — with each
+    // cell's --wave-index delay — plays as a bottom-to-top wave.
     void this.container.offsetHeight;
-    this.container
-      .querySelectorAll(".cell")
-      .forEach((cell) => cell.style.setProperty(CSS_VARIABLES.cellScale, 1));
+    this.container.querySelectorAll(".cell").forEach((cell) => cell.style.setProperty(CSS_VARIABLES.cellScale, 1));
   }
 
-  // Shrinks existing cells/discs to nothing, then rebuilds an empty board
-  // (calling onRebuilt once it's ready) which grows back in via construct()'s
-  // usual entrance wave.
+  // Shrinks the existing cells and discs to nothing, then rebuilds an empty
+  // board (calling onRebuilt once it's ready) which grows back in via
+  // construct()'s usual entrance wave.
   restart(rows, columns, onRebuilt) {
     this.clearHighlight();
 
@@ -286,15 +298,50 @@ export class Board {
     }, this.scaleDurationMs);
   }
 
-  // Instantly (no transition) removes any highlighted cells and the
-  // highlighted-line, e.g. right before a restart.
+  // Instantly (no transition) removes the highlighted cells and the line drawn
+  // through them, e.g. right before a restart.
   clearHighlight() {
-    this.container
-      .querySelectorAll(".cell.highlighted")
-      .forEach((cell) => cell.classList.remove("highlighted"));
+    this.container.querySelectorAll(".cell.highlighted").forEach((cell) => cell.classList.remove("highlighted"));
     this.highlightedLineElement?.remove();
     this.highlightedLineElement = null;
     this.highlightedLineCells = null;
+  }
+
+  highlightLine(line) {
+    line.forEach(({ column, row }) => {
+      this.container.querySelector(`.cell[data-column="${column}"][data-row="${row}"]`)?.classList.add("highlighted");
+    });
+
+    this.highlightedLineCells = line;
+    this.drawHighlightedLine();
+  }
+
+  // (Re)draws the white line between the centres of the winning line's end
+  // cells. Called on a win and again on every layout(), so it tracks the board
+  // through resizes.
+  drawHighlightedLine() {
+    if (!this.highlightedLineCells) return;
+
+    const cells = this.highlightedLineCells;
+    const start = this.cellCenter(cells[0].column, cells[0].row);
+    const end = this.cellCenter(cells[cells.length - 1].column, cells[cells.length - 1].row);
+
+    const deltaX = end.x - start.x;
+    const deltaY = end.y - start.y;
+    const length = Math.hypot(deltaX, deltaY);
+    const angle = (Math.atan2(deltaY, deltaX) * 180) / Math.PI;
+    const thickness = (this.cellSize * (1 - this.discScale)) / 2; // matches the CSS: (cell - disc) / 2
+
+    if (!this.highlightedLineElement) {
+      this.highlightedLineElement = document.createElement("div");
+      this.highlightedLineElement.className = "highlighted-line";
+      this.container.insertBefore(this.highlightedLineElement, this.container.firstChild);
+    }
+
+    this.highlightedLineElement.style.width = `${length}px`;
+    this.highlightedLineElement.style.setProperty(CSS_VARIABLES.highlightLineX, `${start.x}px`);
+    this.highlightedLineElement.style.setProperty(CSS_VARIABLES.highlightLineY, `${start.y - thickness / 2}px`);
+    this.highlightedLineElement.style.setProperty(CSS_VARIABLES.highlightLineAngle, `${angle}deg`);
   }
 
   // Fills the board instantly from a server-provided state, no animation.
@@ -308,42 +355,40 @@ export class Board {
     });
   }
 
-  // Shifts the column's existing discs up one row, then drops a new disc in:
-  // it starts centered (right where the preview sits), slides horizontally
-  // into the target column, and only once that arrives does it fall.
+  // Shifts the column's existing discs up one row, then shoots a new one in
+  // from underneath: it starts centered, right where the preview sits, slides
+  // horizontally to the target column, and only once it's there does it rise.
   playDisc(column, role) {
     const stack = this.stacks[column];
     stack.forEach((disc, row) => this.positionDisc(disc, column, row + 1));
 
     const disc = this.createDisc(role);
-    this.positionDisc(disc, this.centeredColumn, -1); // start centered, in the invisible row
-    void disc.offsetHeight; // force reflow so the slide below actually animates
-    this.positionDisc(disc, column, -1); // slide horizontally to the target column
+    this.positionDisc(disc, this.centeredColumn, -1); // in the invisible row below the board
+    void disc.offsetHeight; // commit that, so the slide below actually animates
+    this.positionDisc(disc, column, -1);
 
     window.setTimeout(() => {
-      // Look up the row at fire time (rather than assuming 0): if another
-      // disc landed in this column in the meantime, this one has already
-      // been bumped up, and this must land it there instead of undoing that.
+      // Look the row up at fire time rather than assuming 0: if another disc
+      // has landed in this column meanwhile, this one has already been bumped
+      // up, and it should land there instead of undoing that.
       this.positionDisc(disc, column, stack.indexOf(disc));
     }, this.scaleDurationMs);
 
     stack.unshift(disc);
   }
 
-  // Shows (or hides) the static, centered preview disc. It never tracks the
-  // pointer — it always sits above the middle column while it's my turn.
-  // The scale-in animation only plays the moment the preview (re)appears.
+  // Shows (or hides) the preview disc. It never tracks the pointer — it sits
+  // below the middle column for as long as it's my turn. The scale-in
+  // animation only plays the moment it (re)appears.
   showPreview() {
-    // My turn only when the game is active, not yet over, and it's my role's turn.
-    const isMyTurn = this.active && !this.gameOver && this.role !== null && this.role === this.currentTurn;
-    if (!isMyTurn) {
+    if (!this.canPlay()) {
       this.previewDisc?.remove();
       this.previewDisc = null;
       return;
     }
 
-    // Already shown: just keep its colour in sync (local "pass and play"
-    // flips role each turn; position never needs to change).
+    // Already shown: just keep its colour in sync (local "pass and play" flips
+    // role each turn; the position never changes).
     if (this.previewDisc) {
       this.previewDisc.className = `disc preview ${this.role}`;
       return;
@@ -353,9 +398,9 @@ export class Board {
     disc.className = `disc preview ${this.role}`;
     disc.style.setProperty(CSS_VARIABLES.previewScale, 0);
 
-    // Insert at the very front (rather than appendChild) so the preview
-    // always paints beneath every other disc — including a prior preview,
-    // in case one briefly outlives this one during a turn change.
+    // Inserted at the very front, rather than appended, so the preview always
+    // paints beneath every other disc — including a previous preview, should
+    // one briefly outlive this one during a turn change.
     this.container.insertBefore(disc, this.container.firstChild);
     this.positionDisc(disc, this.centeredColumn, -1);
 
@@ -366,18 +411,7 @@ export class Board {
     disc.style.setProperty(CSS_VARIABLES.previewScale, 1);
   }
 
-  highlightLine(line) {
-    line.forEach(({ column, row }) => {
-      this.container
-        .querySelector(`.cell[data-column="${column}"][data-row="${row}"]`)
-        .classList.add("highlighted");
-    });
-
-    this.highlightedLineCells = line;
-    this.drawHighlightedLine();
-  }
-
-  // Pixel center of a cell, in the same coordinate space positionDisc uses.
+  // Pixel centre of a cell, in the coordinate space positionDisc() uses.
   cellCenter(column, row) {
     return {
       x: column * (this.cellSize + this.gap) + this.cellSize / 2,
@@ -385,38 +419,23 @@ export class Board {
     };
   }
 
-  // (Re)draws the white highlighted-line between the first and last cell of
-  // the winning line. Called after a win and again on every layout() so it
-  // tracks the board through resizes.
-  drawHighlightedLine() {
-    if (!this.highlightedLineCells) return;
-
-    const firstCell = this.highlightedLineCells[0];
-    const lastCell = this.highlightedLineCells[this.highlightedLineCells.length - 1];
-    const startPoint = this.cellCenter(firstCell.column, firstCell.row);
-    const endPoint = this.cellCenter(lastCell.column, lastCell.row);
-
-    const deltaX = endPoint.x - startPoint.x;
-    const deltaY = endPoint.y - startPoint.y;
-    const length = Math.hypot(deltaX, deltaY);
-    const angle = (Math.atan2(deltaY, deltaX) * 180) / Math.PI;
-    const thickness = (this.cellSize * (1 - this.discScale)) / 2; // matches CSS: (cell size - disc size) / 2
-
-    if (!this.highlightedLineElement) {
-      this.highlightedLineElement = document.createElement("div");
-      this.highlightedLineElement.className = "highlighted-line";
-      this.container.insertBefore(this.highlightedLineElement, this.container.firstChild);
-    }
-
-    this.highlightedLineElement.style.width = `${length}px`;
-    this.highlightedLineElement.style.setProperty(CSS_VARIABLES.highlightLineX, `${startPoint.x}px`);
-    this.highlightedLineElement.style.setProperty(CSS_VARIABLES.highlightLineY, `${startPoint.y - thickness / 2}px`);
-    this.highlightedLineElement.style.setProperty(CSS_VARIABLES.highlightLineAngle, `${angle}deg`);
+  createDisc(role) {
+    const disc = document.createElement("div");
+    disc.className = `disc ${role}`;
+    this.container.appendChild(disc);
+    return disc;
   }
 
-  // Recomputes cell size to fill the wrapper, keeping cells square and
-  // reserving one invisible row above (toolbar) and one below (hover preview).
+  positionDisc(disc, column, row) {
+    disc.style.setProperty(CSS_VARIABLES.discColumn, column);
+    disc.style.setProperty(CSS_VARIABLES.discRow, this.rows - row);
+  }
+
+  // Recomputes the cell size to fill the wrapper, keeping cells square and
+  // reserving the invisible row above and below.
   layout() {
+    if (!this.stacks) return; // nothing built yet; a resize can beat the first "init"
+
     const availableWidth = this.wrapper.clientWidth - this.padding * 2;
     const availableHeight = this.wrapper.clientHeight - this.padding * 2;
     const totalRows = this.rows + 2;
@@ -431,10 +450,7 @@ export class Board {
     this.container.style.height = `${this.cellSize * totalRows + this.gap * (totalRows - 1)}px`;
 
     this.stacks.forEach((stack, column) => stack.forEach((disc, row) => this.positionDisc(disc, column, row)));
-
-    if (this.previewDisc) {
-      this.positionDisc(this.previewDisc, this.centeredColumn, -1);
-    }
+    if (this.previewDisc) this.positionDisc(this.previewDisc, this.centeredColumn, -1);
 
     this.drawHighlightedLine();
   }
@@ -442,17 +458,5 @@ export class Board {
   destroy() {
     window.removeEventListener("resize", this.handleResize);
     window.clearTimeout(this.resizeSettleTimer);
-  }
-
-  createDisc(role) {
-    const disc = document.createElement("div");
-    disc.className = `disc ${role}`;
-    this.container.appendChild(disc);
-    return disc;
-  }
-
-  positionDisc(disc, column, row) {
-    disc.style.setProperty(CSS_VARIABLES.discColumn, column);
-    disc.style.setProperty(CSS_VARIABLES.discRow, this.rows - row);
   }
 }
